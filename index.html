@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>粉嶺救恩書院 Fanling Kau Yan College - 特教統籌交叉權限系統 (SECURE)</title>
+    <!-- 引入 SheetJS 用於 Excel 匯入與匯出 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- 引入 docx.js 用於前端備援匯出 Word -->
+    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+<style>
+    body { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+        background-color: #f4f6f9; 
+        color: #333;
+        background-image: url('source/background.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        margin: 0; 
+        padding: 0;
+    }
+    .container { 
+        max-width: 1300px; 
+        margin: 0 auto; 
+        padding: 10px; 
+        box-sizing: border-box; 
+    }
+    #docCaptureArea { padding: 20px; background: #fff; border-radius: 8px; }
+    
+    .login-screen { 
+        width: 90%; 
+        max-width: 420px; 
+        margin: 60px auto; 
+        background: white; 
+        padding: 0; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        text-align: center; 
+        overflow: hidden; 
+        box-sizing: border-box; 
+    }
+    .login-screen h2 { color: #2c3e50; margin-bottom: 5px; font-size: 22px; }
+    .login-screen .subtitle { color: #7f8c8d; font-size: 14px; margin-bottom: 25px; font-weight: 500; }
+    .login-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 15px; font-size: 15px; }
+    .btn-login { background: #00796b; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; }
+    
+    .top-bar { 
+        background: #1a252f; 
+        color: white; 
+        padding: 12px 20px; 
+        border-radius: 6px; 
+        margin-bottom: 20px; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        font-size: 14px; 
+        flex-wrap: wrap; 
+        gap: 10px; 
+    }
+    .btn-logout { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 15px; }
+    .nav-btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-top-nav { background: #7f8c8d; color: white; padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: bold; }
+    .btn-top-nav.active-teacher { background: #ff5252 !important; color: white !important; }
+    .btn-top-nav.active-senco { background: #00cc99 !important; color: white !important; }
+    
+    .main-title { font-size: 24px; font-weight: bold; margin-bottom: 5px; color: #2c3e50; display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+    .main-title .school-en { font-size: 16px; color: #7f8c8d; display: block; font-weight: normal; margin-top: 2px; }
+    
+    .student-selector-card { 
+        background: #e0f2f1; 
+        padding: 15px 20px; 
+        border-radius: 8px; 
+        border: 1px solid #b2dfdb; 
+        margin-bottom: 15px; 
+        display: flex; 
+        align-items: center; 
+        gap: 15px; 
+        flex-wrap: wrap; 
+    }
+    .student-selector-card label { font-weight: bold; color: #004d40; font-size: 16px; margin: 0; }
+    .select-dropdown { padding: 10px 15px; font-size: 16px; font-weight: bold; border: 2px solid #00796b; border-radius: 6px; background-color: white; color: #004d40; cursor: pointer; min-width: 250px; max-width: 100%; box-sizing: border-box; }
+    
+    .student-header { background: #fff; padding: 15px 20px; border-radius: 8px; border-left: 5px solid #00796b; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .student-name { font-size: 22px; font-weight: bold; color: #00796b; margin: 0; }
+    .student-meta { font-size: 14px; color: #555; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+    
+    .student-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+        gap: 15px; 
+        background: #f8fafc; 
+        padding: 12px; 
+        border-radius: 6px; 
+        border: 1px solid #e2e8f0; 
+        margin-bottom: 10px; 
+    }
+    .student-grid-item { font-size: 14px; }
+    .student-profile-box { background: #fdfaf2; border-left: 4px solid #d97706; padding: 12px; border-radius: 4px; font-size: 14px; line-height: 1.5; color: #451a03; margin-top: 5px; white-space: pre-wrap; }
+    
+    .excel-box { background: #edf7ed; border: 2px dashed #4caf50; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }
+    .excel-box.blue-box { background: #e3f2fd; border-color: #2196f3; margin-top: 25px; }
+    .excel-info { display: flex; align-items: center; gap: 15px; }
+    .excel-text h3 { margin: 0 0 5px 0; color: #1b5e20; font-size: 16px; }
+    .excel-box.blue-box .excel-text h3 { color: #0d47a1; }
+    .excel-text p { margin: 0; color: #558b2f; font-size: 13px; }
+    .excel-box.blue-box .excel-text p { color: #1565c0; }
+    
+    .excel-btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-excel-import { background: #2e7d32; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .btn-excel-import:hover { background: #1b5e20; }
+    .btn-excel-export { background: #388e3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .btn-excel-export:hover { background: #2e7d32; }
+
+    .btn-excel-import-blue { background: #1565c0; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .btn-excel-import-blue:hover { background: #0d47a1; }
+    .btn-excel-export-blue { background: #1976d2; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+    .btn-excel-export-blue:hover { background: #1565c0; }
+
+    .card { background: white; padding: 20px; border-radius: 8px; border: 1px solid #dcdcdc; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px; overflow-x: auto; }
+    .card-title { font-size: 16px; font-weight: bold; color: #00796b; margin-bottom: 12px; border-bottom: 2px solid #e0f2f1; padding-bottom: 6px; }
+
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 10px; min-width: 800px; }
+    th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; font-size: 14px; }
+    th { background: #f5f5f5; color: #333; font-weight: bold; }
+    input[type="text"], input[type="password"], select.inline-select { width: 100%; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+    input[type="text"]:disabled, textarea:disabled { background-color: #f1f5f9; cursor: not-allowed; opacity: 0.8; }
+    
+    .btn-submit { background: #00796b; color: white; border: none; padding: 10px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn-export-word { background: #2b579a; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+    .btn-export-word:hover { background: #1e3a68; }
+    .btn-action-del { background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .btn-action-del:hover { background: #b71c1c; }
+    .btn-action-save { background: #2e7d32; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 4px; }
+    .btn-action-save:hover { background: #1b5e20; }
+    .btn-action-pwd { background: #d97706; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; width: 100%; text-align: center; }
+    .btn-action-pwd:hover { background: #b45309; }
+    .btn-action-edit { background: #0284c7; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .btn-action-edit:hover { background: #0369a1; }
+    
+    .btn-ai-generate { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-ai-generate:hover { opacity: 0.9; }
+
+    .inline-form { display: flex; gap: 8px; margin-bottom: 15px; background: #f8fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 6px; align-items: center; flex-wrap: wrap; }
+    .inline-form input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 120px; box-sizing: border-box; flex: 1 1 120px; }
+    .inline-form button { background: #2196f3; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    
+    .role-checkbox-container { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; background: #fff; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+    .role-checkbox-container label { display: flex; align-items: center; gap: 3px; cursor: pointer; font-weight: normal; }
+
+    .hide-view { display: none !important; }
+    .web-file-row { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .web-file-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #334155; word-break: break-all; }
+    .web-file-link { color: #00796b; font-weight: bold; text-decoration: none; }
+    .web-file-link:hover { text-decoration: underline; }
+    
+    .badge-sen { background: #e0f2f1; color: #004d40; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; border: 1px solid #b2dfdb; display: inline-block; }
+
+    .goal-list, .accom-list { list-style: none; padding: 0; margin: 0; }
+    .goal-item, .accom-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 6px; font-size: 14px; }
+
+    #ai-toggle-checkbox:checked ~ #aiFloatingChatWindow { display: flex !important; }
+    #aiFloatingBtn:hover { background-color: #004085 !important; }
+</style>
+</head>
+<body>
+
+<div id="loginLayout" class="login-screen">
+    <img src="source/20d8a89f.png" alt="粉嶺救恩書院 Fanling Kau Yan College" style="width: 100%; height: auto; display: block; margin: 0; padding: 0;">
+    
+    <div style="padding: 25px 30px 30px 30px;">
+        <div style="font-weight: bold; color: #2c3e50; margin-bottom: 20px; font-size: 16px; text-align: center;">特教統籌系統登入 (SECURE)</div>
+        <div id="loginError" style="color:red; font-size:14px; margin-bottom:15px; display:none; text-align:center;">❌ 使用者名稱或密碼錯誤！</div>
+        <div id="serverStatusText" style="color:#d97706; font-size:13px; margin-bottom:15px; font-weight:bold; text-align:center;">⚙️ 請輸入憑證以登入系統...</div>
+        <input type="text" id="loginUser" class="login-input" placeholder="請輸入使用者名稱 (例如: admin)" value="" oninput="hideLoginError()">
+        <input type="password" id="loginPwd" class="login-input" placeholder="請輸入登入密碼" value="" oninput="hideLoginError()" onkeypress="if(event.keyCode===13) executeLogin()">
+        <button class="btn-login" id="btnExecuteLoginTrigger" onclick="executeLogin()">確認登入</button>
+    </div>
+</div>
+
+<div id="mainSystemLayout" class="container hide-view">
+    <div style="width: 100%; margin-bottom: 20px; text-align: center;">
+        <img src="source/header_2.png" alt="粉嶺救恩書院 IEP System" style="width: 100%; max-width: 1300px; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    </div>
+    <div class="top-bar">
+        <div>
+            👤 當前登入：<strong id="txtLoggedTeacherName" style="color:#00cc99; font-size:15px;">---</strong> 
+            [<span id="txtLoggedTeacherRole">---</span>]
+            <button class="btn-logout" onclick="executeLogout()">登出系統 ↩</button>
+        </div>
+        <div class="nav-btn-group" id="adminNavGroup">
+            <button id="navBtnTeacher" class="btn-top-nav" onclick="changeSystemView('teacher')">🍎 老師查閱前台</button>
+            <button id="navBtnSenco" class="btn-top-nav active-senco" onclick="changeSystemView('senco')">⚙️ SENCO 管理員後台</button>
+        </div>
+    </div>
+
+    <div class="main-title">
+        <div>
+            <span>🏫</span> <span style="font-weight: normal; color:#555;">特教統籌系統</span> (<span id="txtCurrentModeHeader">SENCO 管理模式</span>)
+            <span class="school-en">Special Educational Needs Co-ordination System</span>
+        </div>
+    </div>
+    <p style="color: #666; margin: 0 0 20px 0; font-size: 14px;">數據已受 JWT 及後端安全權限保護。</p>
+
+    <!-- SENCO 後台管理區域 -->
+    <div id="sectionSencoManagementAreas">
+        <!-- 學生名冊 Excel 匯入與匯出 -->
+        <div class="excel-box">
+            <div class="excel-info">
+                <div class="excel-text">
+                    <h3>📊 功能一：學生名冊及 IEP 目標對接中心</h3>
+                    <p>獨立匯出或導入學生名單、年級分類、特殊需要類別、教育局三層支援層級與 IEP 學習目標及考試調適。</p>
+                </div>
+            </div>
+            <div class="excel-btn-group">
+                <input type="file" id="excelStudentInput" accept=".xlsx, .xls, .csv, text/csv," style="display:none;" onchange="handleImportStudentExcel(event)">
+                <button class="btn-excel-import" onclick="document.getElementById('excelStudentInput').click()">
+                    📂 匯入學生 Excel 表
+                </button>
+                <button class="btn-excel-export" onclick="exportStudentsToExcel()">
+                    📤 匯出學生 Excel 表
+                </button>
+            </div>
+        </div>
+
+        <div class="card" style="border-top: 3px solid #4caf50;">
+            <h4 style="margin: 0 0 10px 0; color: #1b5e20;">📋 目前系統運作中之學生名冊一覽</h4>
+            <div class="inline-form" style="background: #f0fdf4; border-color: #bbf7d0;">
+                <strong style="font-size:13px; color:#166534;">➕ 單筆新增學生：</strong>
+                <input type="text" id="addSId" placeholder="學生編號 (如 S002)" style="width: 130px;">
+                <input type="text" id="addSName" placeholder="學生姓名" style="width: 100px;">
+                <input type="text" id="addSClass" placeholder="班別 (如 1A)" style="width: 90px;">
+                <input type="text" id="addSGrade" placeholder="年級 (如 中一)" style="width: 100px;">
+                <input type="text" id="addSSen" placeholder="SEN類別(自由輸入，多選用逗號隔開)" style="width: 220px;">
+                <select id="addSTier" class="inline-select" style="width: 130px; padding: 7px;">
+                    <option value="第一層支援">第一層支援</option>
+                    <option value="第二層支援" selected>第二層支援</option>
+                    <option value="第三層支援">第三層支援 (IEP)</option>
+                </select>
+                <input type="text" id="addSProfile" placeholder="學生簡介描述" style="width: 180px;">
+                <button onclick="addSingleStudentHand()" style="background:#166534;">確認新增學生</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">學生編號</th>
+                        <th style="width: 10%;">學生姓名</th>
+                        <th style="width: 6%;">班別</th>
+                        <th style="width: 8%;">年級</th>
+                        <th style="width: 12%;">特殊需要分類 (SEN)</th>
+                        <th style="width: 15%;">教育局融合教育支援模式</th>
+                        <th>學生簡介</th>
+                        <th style="width: 8%;">文件狀態</th>
+                        <th style="width: 6%; text-align: center;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="studentBackpackTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 教職員名冊 Excel 匯入與匯出 -->
+        <div class="excel-box blue-box">
+            <div class="excel-info">
+                <div class="excel-text">
+                    <h3>👥 功能二：全校教職員帳號及密碼權限對接中心</h3>
+                    <p>可在密碼欄位的「🔑 密碼」按鈕重設密碼、勾選多重「系統角色（例如同時為班主任與個案經理）」與編輯管理編號，並點擊「💾 儲存」保存變更。</p>
+                </div>
+            </div>
+            <div class="excel-btn-group">
+                <input type="file" id="excelTeacherInput" accept=".xlsx, .xls, .csv, text/csv," style="display:none;" onchange="handleImportTeacherExcel(event)">
+                <button class="btn-excel-import-blue" onclick="document.getElementById('excelTeacherInput').click()">
+                    📂 匯入教職員 Excel 表
+                </button>
+                <button class="btn-excel-export-blue" onclick="exportTeachersToExcel()">
+                    📤 匯出教職員 Excel 表
+                </button>
+            </div>
+        </div>
+
+        <div class="card" style="border-top: 3px solid #2196f3;">
+            <h4 style="margin: 0 0 12px 0; color: #0d47a1;">📋 目前系統運作中之教職員授權名冊（動態交叉權限）</h4>
+            <div class="inline-form">
+                <strong style="font-size:13px; color:#0d47a1;">➕ 單筆新增教職員：</strong>
+                <input type="text" id="addTName" placeholder="老師姓名" style="width: 100px;">
+                <input type="text" id="addTUser" placeholder="登入帳號" style="width: 100px;">
+                <input type="text" id="addTPwd" placeholder="登入密碼" style="width: 100px;">
+                <input type="text" id="addTRole" placeholder="職責說明" style="width: 110px;">
+                
+                <div class="role-checkbox-container">
+                    <strong style="color: #334155;">角色：</strong>
+                    <label><input type="checkbox" id="addTRole_homeroom" onchange="toggleScopeInputState('addTRole_homeroom', 'addTHomeroomScope')"> 班主任</label>
+                    <label><input type="checkbox" id="addTRole_case" onchange="toggleScopeInputState('addTRole_case', 'addTCaseScope')"> 個案經理</label>
+                    <label><input type="checkbox" id="addTRole_teacher" checked onchange="toggleScopeInputState('addTRole_teacher', 'addTTeacherScope')"> 科任老師</label>
+                    <label><input type="checkbox" id="addTRole_admin"> 最高管理</label>
+                </div>
+
+                <input type="text" id="addTHomeroomScope" placeholder="班主任學生編號" style="width: 110px;" disabled>
+                <input type="text" id="addTCaseScope" placeholder="個案經理學生編號" style="width: 110px;" disabled>
+                <input type="text" id="addTTeacherScope" placeholder="科任老師學生編號" style="width: 110px;">
+                <button onclick="addSingleTeacherHand()">確認新增教職員</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">教職員姓名</th>
+                        <th style="width: 8%;">使用者名稱</th>
+                        <th style="width: 8%; text-align: center;">🔐 密碼</th>
+                        <th style="width: 8%;">職責說明</th>
+                        <th style="width: 16%;">⚙️ 系統角色 (可多選)</th>
+                        <th style="width: 12%;">🏠 班主任管理編號</th>
+                        <th style="width: 12%;">💼 個案經理管理編號</th>
+                        <th style="width: 12%;">📚 科任老師管理編號</th>
+                        <th style="width: 12%; text-align: center;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="teacherTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 老師前台區域 -->
+    <div id="sectionTeacherFrontAreas" class="hide-view">
+        <div class="student-selector-card">
+            <label for="studentSelectDropdown">🔍 選擇/切換查閱學生：</label>
+            <select id="studentSelectDropdown" class="select-dropdown" onchange="handleStudentChange(this.value)"></select>
+        </div>
+
+        <div id="docCaptureArea">
+            <div class="student-header">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <div style="font-size: 13px; color: #555; letter-spacing: 1px; font-weight: bold; margin-bottom: 5px;">粉嶺救恩書院 FANLING KAU YAN COLLEGE</div>
+                        <h2 class="student-name" id="lblStudentName">---</h2>
+                    </div>
+                    <!-- 匯出按鈕：僅限 Admin 顯示 -->
+                    <button id="btnExportWord" class="btn-export-word" onclick="exportStudentIEPWord()" style="display: none;">
+                        📄 匯出教育局 IEP 完整報告 (.docx)
+                    </button>
+                </div>
+                
+                <div class="student-meta" style="margin-top: 15px;">
+                    <div class="student-grid">
+                        <div class="student-grid-item">📅 <strong>出生日期：</strong> <span id="lblStudentBirth">---</span></div>
+                        <div class="student-grid-item">🏫 <strong>就讀年級：</strong> <span id="lblStudentGrade">---</span></div>
+                        <div class="student-grid-item">🏷️ <strong>特殊需要分類：</strong> <span id="lblStudentSenCategory">---</span></div>
+                        <div class="student-grid-item">🟢 <strong>教育局個案支援模式：</strong> <div id="lblStudentTierSupport" style="display:inline-block; margin-top:2px;">---</div></div>
+                    </div>
+                    
+                    <div id="profileContainerBlock">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <strong>📝 學生個人簡介 (Profile Summary)：</strong>
+                            <button id="btnEditProfile" class="btn-action-edit" onclick="toggleProfileEditMode()">✏️ 編輯簡介</button>
+                        </div>
+                        <div id="profileDisplayView" class="student-profile-box">---</div>
+                        
+                        <div id="profileEditArea" class="hide-view" style="margin-top: 5px;">
+                            <textarea id="txtProfileInput" rows="4" style="width: 100%; padding: 10px; border: 1px solid #d97706; border-radius: 4px; box-sizing: border-box; font-size: 14px; font-family: inherit; line-height: 1.5; outline: none;"></textarea>
+                            <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
+                                <button onclick="toggleProfileEditMode(false)" style="background: #64748b; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">取消</button>
+                                <button onclick="saveStudentProfile()" class="btn-action-save" style="padding: 6px 14px; font-size: 13px;">💾 儲存變更</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 醫療證明文字清單 -->
+                    <div id="clinicalFilesContainerBlock" style="background: #f1f5f9; padding: 12px; border-radius: 6px; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; margin-bottom: 5px;">
+                            <strong>📁 醫療證明 / 專家評估信件清單 (受安全權限保護)</strong>
+                            <div>
+                                <input type="file" id="uploadClinicalDoc" accept=".pdf, .jpg, .jpeg, .png, .docx" style="display:none;" onchange="handleClinicalFileUpload(event)">
+                                <button id="btnUploadTrigger" style="font-size:12px; font-weight:bold; cursor:pointer; background:#00796b; color:white; border:none; padding:4px 10px; border-radius:4px;" onclick="document.getElementById('uploadClinicalDoc').click()">＋ 上傳新證明書/信件</button>
+                            </div>
+                        </div>
+                        <div id="clinicalFileList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 個別學習計劃 (IEP) 學習目標 -->
+            <div class="card" style="border-top: 3px solid #00796b;">
+                <div class="card-title">🎯 個別學習計劃 (IEP) 學習目標</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                    <div style="background: #f0fdf4; padding: 12px; border-radius: 6px; border: 1px solid #bbf7d0;">
+                        <h4 style="margin: 0 0 10px 0; color: #166534; font-size: 15px;">🟢 短期目標 (Short-term Goals)</h4>
+                        <ul id="goalListShort" class="goal-list"></ul>
+                        <div class="iep-edit-controls" style="display: flex; gap: 6px; margin-top: 10px;">
+                            <input type="text" id="txtNewGoalShort" placeholder="新增短期目標..." style="font-size: 13px; padding: 6px;">
+                            <button onclick="addGoalItem('short')" style="background: #166534; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">新增</button>
+                        </div>
+                    </div>
+
+                    <div style="background: #eff6ff; padding: 12px; border-radius: 6px; border: 1px solid #bfdbfe;">
+                        <h4 style="margin: 0 0 10px 0; color: #1e40af; font-size: 15px;">🔵 中期目標 (Mid-term Goals)</h4>
+                        <ul id="goalListMid" class="goal-list"></ul>
+                        <div class="iep-edit-controls" style="display: flex; gap: 6px; margin-top: 10px;">
+                            <input type="text" id="txtNewGoalMid" placeholder="新增中期目標..." style="font-size: 13px; padding: 6px;">
+                            <button onclick="addGoalItem('mid')" style="background: #1e40af; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">新增</button>
+                        </div>
+                    </div>
+
+                    <div style="background: #faf5ff; padding: 12px; border-radius: 6px; border: 1px solid #e9d5ff;">
+                        <h4 style="margin: 0 0 10px 0; color: #6b21a8; font-size: 15px;">🟣 長期目標 (Long-term Goals)</h4>
+                        <ul id="goalListLong" class="goal-list"></ul>
+                        <div class="iep-edit-controls" style="display: flex; gap: 6px; margin-top: 10px;">
+                            <input type="text" id="txtNewGoalLong" placeholder="新增長期目標..." style="font-size: 13px; padding: 6px;">
+                            <button onclick="addGoalItem('long')" style="background: #6b21a8; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap;">新增</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 小組支援活動 -->
+            <div class="card" style="border-top: 3px solid #0891b2;">
+                <div class="card-title" style="color: #0e7490;">👥 小組支援活動</div>
+                <p style="font-size: 12px; color: #64748b; margin-top: 0; margin-bottom: 8px;">
+                    僅 Admin 與個案經理可填寫，其他老師僅可檢視內容。
+                </p>
+                <textarea id="txtGroupSupportActivities" rows="5" placeholder="請輸入該學生參與之小組支援活動細節、出席率及表現紀錄..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; line-height: 1.5; outline: none; font-family: inherit;"></textarea>
+                <div id="containerSaveGroupActivities" style="margin-top: 8px; text-align: right;">
+                    <button class="btn-action-save" style="padding: 6px 16px; font-size: 13px;" onclick="saveGroupSupportActivities()">💾 儲存小組支援活動</button>
+                </div>
+            </div>
+
+            <!-- 評估及考試調適安排 -->
+            <div class="card" style="border-top: 3px solid #d97706;">
+                <div class="card-title">📝 評估及考試調適安排 (Exam Accommodations)</div>
+                <div style="background: #fffbe3; padding: 15px; border-radius: 6px; border: 1px solid #fde68a;">
+                    <ul id="accommodationList" class="accom-list"></ul>
+                    <div class="iep-edit-controls" style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                        <input type="text" id="txtNewAccommodation" placeholder="新增考試調適項目 (例如：延長作答時間 25%、放大試卷字型、特別考場)..." style="font-size: 13px; padding: 8px; flex: 1;">
+                        <button onclick="addAccommodationItem()" style="background: #d97706; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap;">➕ 新增調適措施</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 全校教職員日常課堂觀測與追蹤日誌紀錄 -->
+            <div class="card">
+                <div class="card-title">📝 全校教職員日常課堂觀測與追蹤日誌紀錄</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 80%;">評語紀錄內容</th>
+                            <th style="width: 20%; text-align: center;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody"></tbody>
+                </table>
+                <div id="divAddNewLogSection" style="background: #fcfcfc; padding: 15px; border: 1px solid #e0e0e0; border-radius: 6px; margin-top:15px;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #00796b;">✍️ 發表新課堂觀測日誌</h4>
+                    <input type="text" id="newLogText" placeholder="請輸入今天課堂觀測到學生表現...">
+                    <button class="btn-submit" style="width: auto; padding: 8px 20px; margin-top: 8px;" onclick="addNewLog()">提交日誌紀錄</button>
+                </div>
+            </div>
+
+            <!-- IEP 檢討報告 (放置於版面最後) -->
+            <div class="card" style="border-top: 3px solid #6366f1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div class="card-title" style="color: #4f46e5; margin-bottom: 0; border: none; padding: 0;">📋 IEP 檢討報告</div>
+                    <button id="btnAiGenerateReport" class="btn-ai-generate" onclick="generateAiIepReviewReport()">
+                        ✨ AI 輔助綜合生成
+                    </button>
+                </div>
+                <p style="font-size: 12px; color: #64748b; margin-top: 0; margin-bottom: 8px;">
+                    僅 Admin 與個案經理可填寫與生成，AI 能自動綜合今年度之支援項目及成效。
+                </p>
+                <textarea id="txtIepReviewReport" rows="6" placeholder="請輸入或點擊上方 AI 按鈕自動生成 IEP 檢討報告及支援成效..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; line-height: 1.5; outline: none; font-family: inherit;"></textarea>
+                <div id="containerSaveIepReport" style="margin-top: 8px; text-align: right;">
+                    <button class="btn-action-save" style="padding: 6px 16px; font-size: 13px;" onclick="saveIepReviewReport()">💾 儲存 IEP 檢討報告</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="aiFloatingContainer" class="hide-view" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+    <input type="checkbox" id="ai-toggle-checkbox" style="display: none;">
+    <label for="ai-toggle-checkbox" id="aiFloatingBtn" style="background: #0056b3; color: white; padding: 12px 18px; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 14px; user-select: none;">
+        🤖 融合教育 SEN 專家對話助理
+    </label>
+
+    <div id="aiFloatingChatWindow" style="display: none; position: absolute; bottom: 55px; right: 0; width: 380px; height: 500px; background: white; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); flex-direction: column; overflow: hidden;">
+        <div style="background: #0056b3; color: white; padding: 12px 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 14px;">🤖 融合教育 SEN 專家對話助理</span>
+            <label for="ai-toggle-checkbox" style="cursor: pointer; font-size: 16px; padding: 0 4px; color: #e2e8f0;">✕</label>
+        </div>
+        
+        <div id="aiChatBox" style="flex: 1; padding: 12px; overflow-y: auto; font-size: 13px; background: #f8f9fa; display: flex; flex-direction: column; gap: 8px;">
+            <div style="text-align: left;">
+                <span style="background: #e9ecef; color: #212529; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; max-width: 88%; line-height: 1.4;">
+                    老師你好！我是 SEN 專家助理。您可以隨時問我關於 ADHD、ASD、讀寫障礙等學生的課堂調適與行為處理策略！
+                </span>
+            </div>
+        </div>
+        
+        <div style="padding: 10px; border-top: 1px solid #e0e0e0; display: flex; gap: 6px; background: white;">
+            <input type="text" id="aiUserInput" placeholder="請輸入問題..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; outline: none;" onkeypress="if(event.keyCode===13) sendAiChatMessage()">
+            <button onclick="sendAiChatMessage()" style="background: #0056b3; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">發送</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const AuthManager = {
+        getToken() { return localStorage.getItem('jwt_token'); },
+        setSession(token, user) {
+            localStorage.setItem('jwt_token', token);
+            localStorage.setItem('user_info', JSON.stringify(user));
+        },
+        clearSession() {
+            localStorage.removeItem('jwt_token');
+            localStorage.removeItem('user_info');
+            sessionStorage.clear();
+        },
+        getUser() {
+            const u = localStorage.getItem('user_info');
+            return u ? JSON.parse(u) : null;
+        }
+    };
+
+    let systemMasterData = { students: [], teachers: [] };
+    let currentUserSession = null;
+    let selectedStudentIndex = 0;
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function hideLoginError() {
+        document.getElementById('loginError').style.display = 'none';
+    }
+
+    function toggleScopeInputState(checkboxId, inputId) {
+        const checkbox = document.getElementById(checkboxId);
+        const input = document.getElementById(inputId);
+        if (checkbox && input) {
+            input.disabled = !checkbox.checked;
+            if (!checkbox.checked) {
+                input.value = '';
+            }
+        }
+    }
+
+    async function secureFetch(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        if (!(options.body instanceof FormData)) {
+            options.headers['Content-Type'] = 'application/json';
+        }
+        options.headers['Authorization'] = `Bearer ${AuthManager.getToken()}`;
+        
+        const response = await fetch(url, options);
+        if (response.status === 401 || response.status === 403) {
+            alert("⚠️ 您的登入 Session 已失效，請重新登入。");
+            executeLogout();
+            throw new Error("Unauthorized");
+        }
+        return response;
+    }
+
+    async function executeLogin() {
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPwd').value.trim();
+        if(!u || !p) { alert("請輸入帳號與密碼"); return; }
+
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                AuthManager.setSession(data.token, data.user);
+                sessionStorage.setItem('selected_student_idx', '0');
+                const isUserAdmin = Array.isArray(data.user.roles) ? data.user.roles.includes('admin') : data.user.role === 'admin';
+                sessionStorage.setItem('current_system_view_mode', isUserAdmin ? 'senco' : 'teacher');
+                window.location.reload();
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+            }
+        } catch (err) {
+            alert("❌ 登入連線失敗，請檢查後端伺服器 (Node.js) 是否已啟動。");
+        }
+    }
+
+    function executeLogout() {
+        AuthManager.clearSession();
+        window.location.reload();
+    }
+
+    async function loadSystemData() {
+        currentUserSession = AuthManager.getUser();
+        if (!currentUserSession || !AuthManager.getToken()) {
+            document.getElementById('loginLayout').classList.remove('hide-view');
+            document.getElementById('mainSystemLayout').classList.add('hide-view');
+            document.getElementById('aiFloatingContainer').classList.add('hide-view');
+            return;
+        }
+
+        document.getElementById('loginLayout').classList.add('hide-view');
+        document.getElementById('mainSystemLayout').classList.remove('hide-view');
+        document.getElementById('aiFloatingContainer').classList.remove('hide-view');
+
+        try {
+            const res = await secureFetch('/api/get-all-data');
+            if (res.ok) {
+                const serverData = await res.json();
+                systemMasterData.students = serverData.students || [];
+                systemMasterData.teachers = serverData.users || [];
+                
+                const isUserAdmin = Array.isArray(currentUserSession.roles) ? currentUserSession.roles.includes('admin') : currentUserSession.role === 'admin';
+                
+                document.getElementById('txtLoggedTeacherName').innerText = currentUserSession.name || currentUserSession.username;
+                document.getElementById('txtLoggedTeacherRole').innerText = isUserAdmin ? '最高管理員' : (Array.isArray(currentUserSession.roles) ? currentUserSession.roles.join(', ') : '教職員');
+
+                const adminNavGroup = document.getElementById('adminNavGroup');
+                if (adminNavGroup) {
+                    adminNavGroup.style.display = isUserAdmin ? 'flex' : 'none';
+                }
+
+                buildStudentDropdown();
+                let savedViewMode = sessionStorage.getItem('current_system_view_mode');
+                if (!isUserAdmin) savedViewMode = 'teacher';
+                changeSystemView(savedViewMode || 'teacher');
+                renderAllUI();
+            }
+        } catch (err) {
+            console.error("載入失敗:", err);
+        }
+    }
+
+    async function saveSystemData() {
+        try {
+            await secureFetch('/api/save-all-data', {
+                method: 'POST',
+                body: JSON.stringify({
+                    students: systemMasterData.students,
+                    users: systemMasterData.teachers
+                })
+            });
+
+            const me = systemMasterData.teachers.find(t => t.username === currentUserSession.username);
+            if (me) {
+                currentUserSession = { ...currentUserSession, ...me };
+                localStorage.setItem('user_info', JSON.stringify(currentUserSession));
+            }
+
+            buildStudentDropdown();
+            renderAllUI();
+        } catch (e) {
+            alert("儲存變更失敗");
+        }
+    }
+
+    function handleImportStudentExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                if (json.length === 0) {
+                    alert("⚠️ 匯入的 Excel 檔案內無任何資料！");
+                    return;
+                }
+
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                json.forEach(row => {
+                    const id = String(row['學生編號'] || row['編號'] || row['id'] || '').trim();
+                    const name = String(row['學生姓名'] || row['姓名'] || row['name'] || '').trim();
+
+                    if (!id || !name) return;
+
+                    const existingIndex = systemMasterData.students.findIndex(
+                        s => String(s.id).trim().toLowerCase() === id.toLowerCase()
+                    );
+
+                    if (existingIndex !== -1) {
+                        const oldStudent = systemMasterData.students[existingIndex];
+                        systemMasterData.students[existingIndex] = {
+                            ...oldStudent,
+                            name: name,
+                            class: String(row['班別'] || row['class'] || oldStudent.class || '').trim(),
+                            grade: String(row['年級'] || row['grade'] || oldStudent.grade || '').trim(),
+                            sen_category: String(row['SEN類別'] || row['特殊需要分類'] || row['sen_category'] || oldStudent.sen_category || '無').trim(),
+                            tier_support: String(row['支援層級'] || row['教育局融合教育支援模式'] || row['tier_support'] || oldStudent.tier_support || '第二層支援').trim(),
+                            profile: String(row['簡介'] || row['學生簡介'] || row['profile'] || oldStudent.profile || '').trim()
+                        };
+                        updatedCount++;
+                    } else {
+                        systemMasterData.students.push({
+                            id: id,
+                            name: name,
+                            class: String(row['班別'] || row['class'] || '').trim(),
+                            grade: String(row['年級'] || row['grade'] || '').trim(),
+                            sen_category: String(row['SEN類別'] || row['特殊需要分類'] || row['sen_category'] || '無').trim(),
+                            tier_support: String(row['支援層級'] || row['教育局融合教育支援模式'] || row['tier_support'] || '第二層支援').trim(),
+                            profile: String(row['簡介'] || row['學生簡介'] || row['profile'] || '').trim(),
+                            goals: { short: [], mid: [], long: [] },
+                            accommodations: [],
+                            logs: [],
+                            clinical_files: [],
+                            iep_review_report: '',
+                            group_activities: ''
+                        });
+                        addedCount++;
+                    }
+                });
+
+                await saveSystemData();
+                alert(`✅ 處理完成！\n• 新增：${addedCount} 筆\n• 更新：${updatedCount} 筆`);
+            } catch (err) {
+                console.error(err);
+                alert("❌ 解析 Excel 檔案時發生錯誤，請確認檔案格式是否正確。");
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function exportStudentsToExcel() {
+        if (!systemMasterData.students || systemMasterData.students.length === 0) {
+            alert("⚠️ 目前名冊內無任何學生資料可供匯出！");
+            return;
+        }
+
+        const exportData = systemMasterData.students.map(s => ({
+            "學生編號": s.id || '',
+            "學生姓名": s.name || '',
+            "班別": s.class || '',
+            "年級": s.grade || '',
+            "SEN類別": s.sen_category || '無',
+            "支援層級": s.tier_support || '第二層支援',
+            "學生簡介": s.profile || '',
+            "IEP檢討報告": s.iep_review_report || '',
+            "小組支援活動": s.group_activities || ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "學生名冊");
+
+        const fileName = `學生名冊_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    }
+
+    function handleImportTeacherExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                if (json.length === 0) {
+                    alert("⚠️ 匯入的 Excel 檔案內無任何資料！");
+                    return;
+                }
+
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                json.forEach(row => {
+                    const username = String(row['帳號'] || row['使用者名稱'] || row['username'] || '').trim();
+                    const name = String(row['教職員姓名'] || row['姓名'] || row['name'] || '').trim();
+                    const password = String(row['密碼'] || row['password'] || '123456').trim();
+
+                    if (!username || !name) return;
+
+                    const rawRoles = String(row['角色'] || row['roles'] || 'teacher').toLowerCase();
+                    const roles = rawRoles.split(',').map(r => r.trim()).filter(Boolean);
+                    const finalRoles = roles.length > 0 ? roles : ['teacher'];
+
+                    const existingIndex = systemMasterData.teachers.findIndex(
+                        t => String(t.username).trim().toLowerCase() === username.toLowerCase()
+                    );
+
+                    if (existingIndex !== -1) {
+                        const oldTeacher = systemMasterData.teachers[existingIndex];
+                        systemMasterData.teachers[existingIndex] = {
+                            ...oldTeacher,
+                            name: name,
+                            password: row['密碼'] || row['password'] ? password : oldTeacher.password,
+                            roles: finalRoles,
+                            role_desc: String(row['職責說明'] || row['role_desc'] || oldTeacher.role_desc || '').trim(),
+                            homeroom_scope: String(row['班主任學生編號'] || row['homeroom_scope'] || oldTeacher.homeroom_scope || '').trim(),
+                            case_scope: String(row['個案經理學生編號'] || row['case_scope'] || oldTeacher.case_scope || '').trim(),
+                            teacher_scope: String(row['科任老師學生編號'] || row['teacher_scope'] || oldTeacher.teacher_scope || '').trim()
+                        };
+                        updatedCount++;
+                    } else {
+                        systemMasterData.teachers.push({
+                            name: name,
+                            username: username,
+                            password: password,
+                            roles: finalRoles,
+                            role_desc: String(row['職責說明'] || row['role_desc'] || '').trim(),
+                            homeroom_scope: String(row['班主任學生編號'] || row['homeroom_scope'] || '').trim(),
+                            case_scope: String(row['個案經理學生編號'] || row['case_scope'] || '').trim(),
+                            teacher_scope: String(row['科任老師學生編號'] || row['teacher_scope'] || '').trim()
+                        });
+                        addedCount++;
+                    }
+                });
+
+                await saveSystemData();
+                alert(`✅ 處理完成！\n• 新增教職員：${addedCount} 筆\n• 更新教職員：${updatedCount} 筆`);
+            } catch (err) {
+                console.error(err);
+                alert("❌ 解析 Excel 檔案時發生錯誤，請確認檔案格式是否正確。");
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function exportTeachersToExcel() {
+        if (!systemMasterData.teachers || systemMasterData.teachers.length === 0) {
+            alert("⚠️ 目前無任何教職員資料可供匯出！");
+            return;
+        }
+
+        const exportData = systemMasterData.teachers.map(t => ({
+            "教職員姓名": t.name || '',
+            "使用者名稱": t.username || '',
+            "職責說明": t.role_desc || '',
+            "角色": Array.isArray(t.roles) ? t.roles.join(',') : (t.role || 'teacher'),
+            "班主任學生編號": t.homeroom_scope || '',
+            "個案經理學生編號": t.case_scope || '',
+            "科任老師學生編號": t.teacher_scope || ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "教職員名冊");
+
+        const fileName = `教職員名冊_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    }
+
+    const checkUserRelation = function(studentId) {
+        if (!currentUserSession) return { isHomeroom: false, isCaseManager: false, isSubjectTeacher: false, isAdmin: false };
+        
+        const userRoles = Array.isArray(currentUserSession.roles) 
+            ? currentUserSession.roles 
+            : (currentUserSession.role ? [currentUserSession.role] : []);
+        
+        const isAdminRole = userRoles.includes('admin');
+        const isHomeRole = userRoles.includes('homeroom') || userRoles.includes('homeroom_teacher');
+        const isCaseRole = userRoles.includes('case') || userRoles.includes('case_manager');
+        const isTeachRole = userRoles.includes('teacher');
+
+        if (isAdminRole) {
+            return { isHomeroom: true, isCaseManager: true, isSubjectTeacher: true, isAdmin: true };
+        }
+
+        const parseList = (str) => (str || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        const homeList = parseList(currentUserSession.homeroom_scope);
+        const caseList = parseList(currentUserSession.case_scope);
+        const teachList = parseList(currentUserSession.teacher_scope);
+
+        const sId = (studentId || '').toLowerCase();
+
+        const isHomeroomMatch = isHomeRole && (homeList.includes('all') || homeList.includes(sId));
+        const isCaseMatch = isCaseRole && (caseList.includes('all') || caseList.includes(sId));
+        const isSubjectMatch = isTeachRole && (teachList.includes('all') || teachList.includes(sId));
+
+        return {
+            isHomeroom: isHomeroomMatch,
+            isCaseManager: isCaseMatch,
+            isSubjectTeacher: isSubjectMatch,
+            isAdmin: isAdminRole
+        };
+    };
+
+    function buildStudentDropdown() {
+        const dropdown = document.getElementById('studentSelectDropdown');
+        if(!dropdown) return;
+        dropdown.innerHTML = '';
+
+        const accessibleStudents = systemMasterData.students || [];
+
+        if (accessibleStudents.length === 0) {
+            dropdown.innerHTML = '<option value="-1">❌ 目前無權限管理任何學生</option>';
+            selectedStudentIndex = -1;
+            return;
+        }
+
+        accessibleStudents.forEach((item, realIdx) => {
+            const opt = document.createElement('option');
+            opt.value = realIdx;
+            opt.innerText = `${item.name} (${item.class || '無'}班) - [${item.sen_category || '無'}]`;
+            dropdown.appendChild(opt);
+        });
+
+        selectedStudentIndex = parseInt(dropdown.options[0].value);
+        dropdown.value = selectedStudentIndex;
+    }
+
+    function handleStudentChange(index) {
+        if(parseInt(index) === -1) return;
+        selectedStudentIndex = parseInt(index);
+        toggleProfileEditMode(false);
+        renderAllUI();
+    }
+
+    function changeSystemView(viewMode) {
+        const isUserAdmin = Array.isArray(currentUserSession?.roles) ? currentUserSession.roles.includes('admin') : currentUserSession?.role === 'admin';
+        if (viewMode === 'senco' && !isUserAdmin) viewMode = 'teacher';
+        sessionStorage.setItem('current_system_view_mode', viewMode);
+        document.getElementById('sectionSencoManagementAreas').classList.toggle('hide-view', viewMode !== 'senco');
+        document.getElementById('sectionTeacherFrontAreas').classList.toggle('hide-view', viewMode !== 'teacher');
+        document.getElementById('txtCurrentModeHeader').innerText = viewMode === 'teacher' ? "老師查閱前台模式" : "SENCO 管理模式";
+    }
+
+    function toggleProfileEditMode(enable = true) {
+        const displayView = document.getElementById('profileDisplayView');
+        const editArea = document.getElementById('profileEditArea');
+        const btnEdit = document.getElementById('btnEditProfile');
+        
+        if (enable) {
+            const student = systemMasterData.students[selectedStudentIndex];
+            document.getElementById('txtProfileInput').value = student ? (student.profile || '') : '';
+            displayView.classList.add('hide-view');
+            editArea.classList.remove('hide-view');
+            btnEdit.classList.add('hide-view');
+        } else {
+            displayView.classList.remove('hide-view');
+            editArea.classList.add('hide-view');
+            btnEdit.classList.remove('hide-view');
+        }
+    }
+
+    async function saveStudentProfile() {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        const newProfile = document.getElementById('txtProfileInput').value.trim();
+        student.profile = newProfile;
+
+        await saveSystemData();
+        toggleProfileEditMode(false);
+        alert("✅ 學生簡介已順利更新！");
+    }
+
+    // 保存 IEP 檢討報告
+    async function saveIepReviewReport() {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        const val = document.getElementById('txtIepReviewReport').value;
+        student.iep_review_report = val;
+        await saveSystemData();
+        alert("✅ IEP 檢討報告已成功儲存！");
+    }
+
+    // 保存小組支援活動
+    async function saveGroupSupportActivities() {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        const val = document.getElementById('txtGroupSupportActivities').value;
+        student.group_activities = val;
+        await saveSystemData();
+        alert("✅ 小組支援活動紀錄已成功儲存！");
+    }
+
+    // AI 輔助綜合生成 IEP 檢討報告
+    async function generateAiIepReviewReport() {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        const btn = document.getElementById('btnAiGenerateReport');
+        btn.disabled = true;
+        btn.innerText = '⏳ AI 正在分析綜合中...';
+
+        try {
+            const promptText = `請根據以下學生的支援數據，自動撰寫一份約 150-250 字的「年度 IEP 支援與成效檢討總結報告」：
+1. 學生姓名：${student.name}
+2. 特殊教育需要：${student.sen_category || '無'}
+3. 支援層級：${student.tier_support || '未設定'}
+4. 學習目標：
+   - 短期：${(student.goals?.short || []).join(', ') || '無'}
+   - 中期：${(student.goals?.mid || []).join(', ') || '無'}
+   - 長期：${(student.goals?.long || []).join(', ') || '無'}
+5. 考試調適：${(student.accommodations || []).join(', ') || '無'}
+6. 日常觀察紀錄：${(student.logs || []).slice(-5).join('; ') || '無紀錄'}
+7. 參與小組活動：${student.group_activities || '無'}
+
+格式請包含：【支援項目綜合摘要】、【策略執行成效評估】及【未來改善建議】。以專業但客觀的教育語氣呈現。`;
+
+            const res = await secureFetch('/api/sen-chat', {
+                method: 'POST',
+                body: JSON.stringify({
+                    prompt: promptText,
+                    studentContext: {
+                        name: student.name,
+                        sen_category: student.sen_category,
+                        profile: student.profile
+                    }
+                })
+            });
+            const data = await res.json();
+
+            if (data && data.reply) {
+                document.getElementById('txtIepReviewReport').value = data.reply;
+                alert("✨ AI 綜合報告生成完畢！請確認或編輯後點擊「儲存 IEP 檢討報告」。");
+            } else {
+                alert("❌ 生成失敗，請再試一次。");
+            }
+        } catch (err) {
+            alert("❌ AI 綜合生成失敗，請確認 AI 伺服器狀態。");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = '✨ AI 輔助綜合生成';
+        }
+    }
+
+    function renderGoals(type, containerId, canEdit) {
+        const ul = document.getElementById(containerId);
+        if(!ul) return;
+        ul.innerHTML = '';
+        
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student || !student.goals || !student.goals[type] || student.goals[type].length === 0) {
+            ul.innerHTML = `<li style="color:#94a3b8; font-style:italic; font-size:13px; padding: 4px 0;">暫無設定目標</li>`;
+            return;
+        }
+
+        student.goals[type].forEach((g, idx) => {
+            const delBtnHTML = canEdit ? `<button class="btn-action-del" onclick="deleteGoalItem('${type}', ${idx})">❌</button>` : '';
+            ul.innerHTML += `
+                <li class="goal-item">
+                    <span>• ${escapeHtml(g)}</span>
+                    ${delBtnHTML}
+                </li>`;
+        });
+    }
+
+    async function addGoalItem(type) {
+        const inputId = type === 'short' ? 'txtNewGoalShort' : (type === 'mid' ? 'txtNewGoalMid' : 'txtNewGoalLong');
+        const input = document.getElementById(inputId);
+        const val = input.value.trim();
+        if (!val) return;
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student.goals) student.goals = { short: [], mid: [], long: [] };
+        if (!student.goals[type]) student.goals[type] = [];
+
+        student.goals[type].push(val);
+        await saveSystemData();
+        input.value = '';
+    }
+
+    async function deleteGoalItem(type, idx) {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (student && student.goals && student.goals[type]) {
+            student.goals[type].splice(idx, 1);
+            await saveSystemData();
+        }
+    }
+
+    function renderAccommodations(canEdit) {
+        const ul = document.getElementById('accommodationList');
+        if(!ul) return;
+        ul.innerHTML = '';
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student || !student.accommodations || student.accommodations.length === 0) {
+            ul.innerHTML = `<li style="color:#94a3b8; font-style:italic; font-size:13px; padding: 4px 0;">暫無特別考試調適安排</li>`;
+            return;
+        }
+
+        student.accommodations.forEach((item, idx) => {
+            const delBtnHTML = canEdit ? `<button class="btn-action-del" onclick="deleteAccommodationItem(${idx})">❌ 刪除</button>` : '';
+            ul.innerHTML += `
+                <li class="accom-item">
+                    <span>📋 ${escapeHtml(item)}</span>
+                    ${delBtnHTML}
+                </li>`;
+        });
+    }
+
+    async function addAccommodationItem() {
+        const input = document.getElementById('txtNewAccommodation');
+        const val = input.value.trim();
+        if (!val) return;
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student.accommodations) student.accommodations = [];
+
+        student.accommodations.push(val);
+        await saveSystemData();
+        input.value = '';
+    }
+
+    async function deleteAccommodationItem(idx) {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (student && student.accommodations) {
+            student.accommodations.splice(idx, 1);
+            await saveSystemData();
+        }
+    }
+
+    function renderAllUI() {
+        const studentTbody = document.getElementById('studentBackpackTableBody');
+        if (studentTbody) {
+            studentTbody.innerHTML = '';
+            (systemMasterData.students || []).forEach((s, idx) => {
+                studentTbody.innerHTML += `
+                    <tr>
+                        <td>${escapeHtml(s.id)}</td>
+                        <td>${escapeHtml(s.name)}</td>
+                        <td>${escapeHtml(s.class || '---')}</td>
+                        <td>${escapeHtml(s.grade || '---')}</td>
+                        <td><span class="badge-sen">${escapeHtml(s.sen_category || '無')}</span></td>
+                        <td>${escapeHtml(s.tier_support || '第二層支援')}</td>
+                        <td>${escapeHtml(s.profile || '無')}</td>
+                        <td>${(s.clinical_files && s.clinical_files.length) ? '📁 有文件' : '無'}</td>
+                        <td style="text-align:center;"><button class="btn-action-del" onclick="deleteStudentHand(${idx})">❌</button></td>
+                    </tr>`;
+            });
+        }
+
+        const teacherTbody = document.getElementById('teacherTableBody');
+        if (teacherTbody) {
+            teacherTbody.innerHTML = '';
+            (systemMasterData.teachers || []).forEach((t, idx) => {
+                const currentRoles = Array.isArray(t.roles) ? t.roles : (t.role ? [t.role] : []);
+                
+                const isHome = currentRoles.includes('homeroom');
+                const isCase = currentRoles.includes('case');
+                const isTeach = currentRoles.includes('teacher');
+                const isAdmin = currentRoles.includes('admin');
+
+                teacherTbody.innerHTML += `
+                    <tr>
+                        <td>${escapeHtml(t.name)}</td>
+                        <td>${escapeHtml(t.username)}</td>
+                        <td style="text-align:center;">
+                            <div style="font-size:12px; color:#555; margin-bottom:4px;">🔒 已加密</div>
+                            <button class="btn-action-pwd" onclick="resetUserPassword(${idx})">🔑 密碼</button>
+                        </td>
+                        <td>${escapeHtml(t.role_desc || '---')}</td>
+                        <td>
+                            <div class="role-checkbox-container">
+                                <label><input type="checkbox" id="editTRole_home_${idx}" ${isHome ? 'checked' : ''} onchange="toggleScopeInputState('editTRole_home_${idx}', 'editTHome_${idx}')"> 班主任</label>
+                                <label><input type="checkbox" id="editTRole_case_${idx}" ${isCase ? 'checked' : ''} onchange="toggleScopeInputState('editTRole_case_${idx}', 'editTCase_${idx}')"> 個案經理</label>
+                                <label><input type="checkbox" id="editTRole_teach_${idx}" ${isTeach ? 'checked' : ''} onchange="toggleScopeInputState('editTRole_teach_${idx}', 'editTTeach_${idx}')"> 科任</label>
+                                <label><input type="checkbox" id="editTRole_admin_${idx}" ${isAdmin ? 'checked' : ''}> 管理員</label>
+                            </div>
+                        </td>
+                        <td><input type="text" id="editTHome_${idx}" value="${escapeHtml(t.homeroom_scope || '')}" placeholder="如: S001,S002 或 all" ${isHome ? '' : 'disabled'}></td>
+                        <td><input type="text" id="editTCase_${idx}" value="${escapeHtml(t.case_scope || '')}" placeholder="如: S001 或 all" ${isCase ? '' : 'disabled'}></td>
+                        <td><input type="text" id="editTTeach_${idx}" value="${escapeHtml(t.teacher_scope || '')}" placeholder="如: S001,S002 或 all" ${isTeach ? '' : 'disabled'}></td>
+                        <td style="text-align:center;">
+                            <button class="btn-action-save" onclick="updateTeacherScopes(${idx})">💾 儲存</button>
+                            <button class="btn-action-del" onclick="deleteTeacherHand(${idx})">❌</button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        if (selectedStudentIndex === -1 || !systemMasterData.students[selectedStudentIndex]) return;
+        const student = systemMasterData.students[selectedStudentIndex];
+
+        const rel = checkUserRelation(student.id);
+        const canEditProfile = rel.isAdmin || rel.isCaseManager;
+        const canEditIEPAndAccom = rel.isAdmin || rel.isCaseManager;
+        const canSeeProfileAndDocs = rel.isAdmin || rel.isCaseManager || rel.isHomeroom;
+
+        document.getElementById('lblStudentName').innerText = `${student.name} (${student.class || '---'} 班) - [學生編號: ${student.id || 'N/A'}]`;
+        document.getElementById('lblStudentBirth').innerText = student.birthday || "未填寫";
+        document.getElementById('lblStudentGrade').innerText = student.grade || "未設定";
+        document.getElementById('lblStudentSenCategory').innerText = student.sen_category || "未分類";
+        document.getElementById('lblStudentTierSupport').innerText = student.tier_support || "第二層支援";
+        document.getElementById('profileDisplayView').innerText = student.profile || "暫無學生簡介。";
+
+        // 更新 IEP 檢討報告 數據與權限
+        const txtIep = document.getElementById('txtIepReviewReport');
+        txtIep.value = student.iep_review_report || '';
+        txtIep.disabled = !canEditIEPAndAccom;
+        document.getElementById('btnAiGenerateReport').style.display = canEditIEPAndAccom ? 'inline-flex' : 'none';
+        document.getElementById('containerSaveIepReport').style.display = canEditIEPAndAccom ? 'block' : 'none';
+
+        // 更新 小組支援活動 數據與權限
+        const txtGroup = document.getElementById('txtGroupSupportActivities');
+        txtGroup.value = student.group_activities || '';
+        txtGroup.disabled = !canEditIEPAndAccom;
+        document.getElementById('containerSaveGroupActivities').style.display = canEditIEPAndAccom ? 'block' : 'none';
+
+        const btnExportWord = document.getElementById('btnExportWord');
+        if (btnExportWord) {
+            btnExportWord.style.display = rel.isAdmin ? 'flex' : 'none';
+        }
+
+        const profileBlock = document.getElementById('profileContainerBlock');
+        if (profileBlock) {
+            profileBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
+        }
+        const btnEditProfile = document.getElementById('btnEditProfile');
+        if (btnEditProfile) {
+            btnEditProfile.style.display = canEditProfile ? 'inline-block' : 'none';
+        }
+
+        const clinicalBlock = document.getElementById('clinicalFilesContainerBlock');
+        if (clinicalBlock) {
+            clinicalBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
+        }
+
+        renderGoals('short', 'goalListShort', canEditIEPAndAccom);
+        renderGoals('mid', 'goalListMid', canEditIEPAndAccom);
+        renderGoals('long', 'goalListLong', canEditIEPAndAccom);
+
+        renderAccommodations(canEditIEPAndAccom);
+
+        document.querySelectorAll('.iep-edit-controls').forEach(el => {
+            el.style.display = canEditIEPAndAccom ? 'flex' : 'none';
+        });
+
+        const fileListDiv = document.getElementById('clinicalFileList');
+
+        if (fileListDiv) {
+            fileListDiv.innerHTML = '';
+
+            const files = student.clinical_files || (student.docPath ? [student.docPath] : []);
+
+            if (files.length > 0) {
+                files.forEach((fileName, fIndex) => {
+                    const fileUrl = `/api/files/${encodeURIComponent(fileName)}`;
+                    
+                    fileListDiv.innerHTML += `
+                        <div class="web-file-row">
+                            <div class="web-file-info">📎 [文件 ${fIndex + 1}] <a href="${fileUrl}" target="_blank" class="web-file-link">${escapeHtml(fileName)}</a></div>
+                            <button style="background:#e53e3e; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;" onclick="deleteClinicalFile('${fileName}', ${fIndex})">❌ 刪除</button>
+                        </div>`;
+                });
+            } else {
+                fileListDiv.innerHTML = `<div style="color:#999; font-style:italic; font-size:13px;">🔍 該學生暫無上傳任何醫療文件。</div>`;
+            }
+        }
+
+        const logTbody = document.getElementById('logTableBody');
+        if (logTbody) {
+            logTbody.innerHTML = '';
+            (student.logs || []).forEach((logLine, index) => {
+                logTbody.innerHTML += `<tr><td>${escapeHtml(logLine)}</td><td style="text-align:center;"><button class="btn-action-del" onclick="deleteLogLine(${index})">❌ 刪除</button></td></tr>`;
+            });
+        }
+    }
+
+    async function exportStudentIEPWord() {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) { alert("⚠️ 找不到學生資料，無法匯出。"); return; }
+
+        const rel = checkUserRelation(student.id);
+        if (!rel.isAdmin) {
+            alert("⚠️ 存取被拒絕：只有系統最高管理員 (Admin) 具備匯出 IEP 報告的權限！");
+            return;
+        }
+
+        const exportBtn = document.getElementById('btnExportWord');
+        if (exportBtn) {
+            exportBtn.disabled = true;
+            exportBtn.innerText = '⏳ 正在產生 Word 報告...';
+        }
+
+        try {
+            const response = await secureFetch(`/api/export-iep-word/${student.id}`, {
+                method: 'GET'
+            });
+
+            if (!response.ok) {
+                throw new Error(`後端服務回應異常 (HTTP ${response.status})`);
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `IEP_Report_${student.class || '無'}_${student.name}_${student.id}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+
+        } catch (error) {
+            try {
+                if (typeof docx === 'undefined') {
+                    throw new Error("前端 docx 函式庫未成功載入");
+                }
+
+                const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+
+                const goalsShort = (student.goals && student.goals.short) || [];
+                const goalsMid = (student.goals && student.goals.mid) || [];
+                const goalsLong = (student.goals && student.goals.long) || [];
+                const accommodations = student.accommodations || [];
+                const logs = student.logs || [];
+                const clinicalFiles = student.clinical_files || (student.docPath ? [student.docPath] : []);
+
+                const doc = new Document({
+                    sections: [{
+                        properties: {},
+                        children: [
+                            new Paragraph({
+                                text: "粉嶺救恩書院 Fanling Kau Yan College",
+                                alignment: AlignmentType.CENTER,
+                                heading: HeadingLevel.TITLE
+                            }),
+                            new Paragraph({
+                                text: "個別學習計劃 (IEP) 完整報告",
+                                alignment: AlignmentType.CENTER,
+                                heading: HeadingLevel.HEADING_2,
+                                space: { after: 300 }
+                            }),
+
+                            new Paragraph({ text: "一、 學生基本資料", heading: HeadingLevel.HEADING_2, space: { before: 200, after: 100 } }),
+                            new Paragraph({ children: [new TextRun({ text: "學生姓名：", bold: true }), new TextRun(student.name || "N/A")] }),
+                            new Paragraph({ children: [new TextRun({ text: "學生編號：", bold: true }), new TextRun(student.id || "N/A")] }),
+                            new Paragraph({ children: [new TextRun({ text: "班別：", bold: true }), new TextRun(student.class || "N/A")] }),
+                            new Paragraph({ children: [new TextRun({ text: "出生日期：", bold: true }), new TextRun(student.birthday || "未填寫")] }),
+                            new Paragraph({ children: [new TextRun({ text: "特殊需要分類：", bold: true }), new TextRun(student.sen_category || "無")] }),
+                            new Paragraph({ children: [new TextRun({ text: "支援層級：", bold: true }), new TextRun(student.tier_support || "第二層支援")] }),
+                            new Paragraph({ children: [new TextRun({ text: "簡介描述：", bold: true }), new TextRun(student.profile || "無")] }),
+
+                            new Paragraph({ text: "二、 個別學習計劃 (IEP) 目標", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
+                            new Paragraph({ text: "短期目標：", bold: true }),
+                            ...(goalsShort.length > 0 ? goalsShort.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+                            new Paragraph({ text: "中期目標：", bold: true, space: { before: 100 } }),
+                            ...(goalsMid.length > 0 ? goalsMid.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+                            new Paragraph({ text: "長期目標：", bold: true, space: { before: 100 } }),
+                            ...(goalsLong.length > 0 ? goalsLong.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+
+                            new Paragraph({ text: "三、 小組支援活動與考試調適安排", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
+                            new Paragraph({ children: [new TextRun({ text: "小組支援活動：\n", bold: true }), new TextRun(student.group_activities || "（暫無活動紀錄）")] }),
+                            new Paragraph({ text: "\n考試調適安排：", bold: true, space: { before: 100 } }),
+                            ...(accommodations.length > 0 ? accommodations.map(a => new Paragraph({ text: `• ${a}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無特別調適）" })]),
+
+                            new Paragraph({ text: "四、 課堂觀測與追蹤日誌", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
+                            ...(logs.length > 0 ? logs.map(l => new Paragraph({ text: `• ${l}` })) : [new Paragraph({ text: "（暫無日誌紀錄）" })]),
+
+                            new Paragraph({ text: "五、 IEP 檢討報告", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
+                            new Paragraph({ children: [new TextRun({ text: "檢討總結：\n", bold: true }), new TextRun(student.iep_review_report || "（暫無檢討報告）")] }),
+
+                            new Paragraph({ text: "六、 醫療證明 / 專家評估信件清單", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
+                            ...(clinicalFiles.length > 0 ? clinicalFiles.map((f, idx) => new Paragraph({ text: `[文件 ${idx + 1}] ${f}` })) : [new Paragraph({ text: "（暫無上傳文件）" })]),
+
+                            new Paragraph({ text: "\n\n" }),
+                            new Paragraph({ text: "特教統籌主任 (SENCO) 簽署：____________________", space: { before: 400 } }),
+                            new Paragraph({ text: "個案負責老師 / 班主任簽署：____________________", space: { before: 200 } }),
+                            new Paragraph({ text: "日期：____________________    校印：____________________", space: { before: 200 } })
+                        ]
+                    }]
+                });
+
+                const blob = await Packer.toBlob(doc);
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `IEP_Report_${student.class || '無'}_${student.name}_${student.id}_Fallback.docx`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(downloadUrl);
+            } catch (fallbackErr) {
+                alert("❌ 匯出 Word 時發生錯誤，請檢查網路連線或聯絡系統管理員。");
+            }
+        } finally {
+            if (exportBtn) {
+                exportBtn.disabled = false;
+                exportBtn.innerText = '📄 匯出教育局 IEP 完整報告 (.docx)';
+            }
+        }
+    }
+
+    async function handleClinicalFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        const formData = new FormData();
+        formData.append('clinicalDoc', file);
+        formData.append('studentId', student.id);
+
+        try {
+            const res = await secureFetch('/api/upload-clinical-doc', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                if (!student.clinical_files) student.clinical_files = [];
+                student.clinical_files.push(data.fileName);
+                await saveSystemData();
+                alert("✅ 醫療證明文件上傳成功！");
+            } else {
+                alert("❌ 上傳失敗: " + (data.message || '未知錯誤'));
+            }
+        } catch (err) {
+            alert("❌ 檔案上傳發生錯誤，請檢查伺服器設定。");
+        }
+        e.target.value = '';
+    }
+
+    async function deleteClinicalFile(fileName, fIndex) {
+        if (!confirm(`⚠️ 確定要刪除證明文件「${fileName}」嗎？`)) return;
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        try {
+            await secureFetch('/api/delete-physical-file', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    studentId: student.id, 
+                    filePath: fileName, 
+                    fileName: fileName 
+                })
+            });
+
+            if (student.clinical_files) {
+                student.clinical_files.splice(fIndex, 1);
+            }
+            await saveSystemData();
+            alert("🗑️ 證明文件已成功刪除！");
+        } catch (err) {
+            alert("❌ 刪除檔案失敗。");
+        }
+    }
+
+    async function addNewLog() {
+        const input = document.getElementById('newLogText');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
+
+        if (!student.logs) student.logs = [];
+        const dateStr = new Date().toLocaleDateString('zh-TW');
+        const teacherName = currentUserSession.name || currentUserSession.username;
+        student.logs.push(`[${dateStr} - ${teacherName}] ${text}`);
+
+        await saveSystemData();
+        input.value = '';
+    }
+
+    async function deleteLogLine(index) {
+        const student = systemMasterData.students[selectedStudentIndex];
+        if (student && student.logs) {
+            student.logs.splice(index, 1);
+            await saveSystemData();
+        }
+    }
+
+    async function addSingleStudentHand() {
+        const id = document.getElementById('addSId').value.trim();
+        const name = document.getElementById('addSName').value.trim();
+        const sClass = document.getElementById('addSClass').value.trim();
+        const grade = document.getElementById('addSGrade').value.trim();
+        let rawSen = document.getElementById('addSSen').value.trim();
+        const tier = document.getElementById('addSTier').value;
+        const profile = document.getElementById('addSProfile').value.trim();
+
+        if (!id || !name) { alert("請填寫學生編號與姓名！"); return; }
+
+        if (systemMasterData.students.some(s => s.id.toLowerCase() === id.toLowerCase())) {
+            alert("⚠️ 學生編號已存在！");
+            return;
+        }
+
+        if (rawSen) {
+            rawSen = rawSen
+                .replace(/，/g, ',')
+                .split(',')
+                .map(item => item.trim())
+                .filter(Boolean)
+                .join(', ');
+        }
+        const sen = rawSen || '無';
+
+        systemMasterData.students.push({
+            id: id,
+            name: name,
+            class: sClass,
+            grade: grade,
+            sen_category: sen,
+            tier_support: tier,
+            profile: profile,
+            goals: { short: [], mid: [], long: [] },
+            accommodations: [],
+            logs: [],
+            clinical_files: [],
+            iep_review_report: '',
+            group_activities: ''
+        });
+
+        await saveSystemData();
+        document.getElementById('addSId').value = '';
+        document.getElementById('addSName').value = '';
+        document.getElementById('addSClass').value = '';
+        document.getElementById('addSGrade').value = '';
+        document.getElementById('addSSen').value = '';
+        document.getElementById('addSProfile').value = '';
+        alert("✅ 已成功新增學生！");
+    }
+
+    async function deleteStudentHand(idx) {
+        if (!confirm("⚠️ 確定要刪除此學生嗎？相應的 IEP 資料將會一併移除！")) return;
+        systemMasterData.students.splice(idx, 1);
+        await saveSystemData();
+    }
+
+    async function addSingleTeacherHand() {
+        const name = document.getElementById('addTName').value.trim();
+        const username = document.getElementById('addTUser').value.trim();
+        const password = document.getElementById('addTPwd').value.trim();
+        const roleDesc = document.getElementById('addTRole').value.trim();
+
+        const isHome = document.getElementById('addTRole_homeroom').checked;
+        const isCase = document.getElementById('addTRole_case').checked;
+        const isTeach = document.getElementById('addTRole_teacher').checked;
+        const isAdmin = document.getElementById('addTRole_admin').checked;
+
+        const homeroomScope = document.getElementById('addTHomeroomScope').value.trim();
+        const caseScope = document.getElementById('addTCaseScope').value.trim();
+        const teacherScope = document.getElementById('addTTeacherScope').value.trim();
+
+        if (!name || !username || !password) { alert("請填寫姓名、帳號與密碼！"); return; }
+
+        if (systemMasterData.teachers.some(t => t.username.toLowerCase() === username.toLowerCase())) {
+            alert("⚠️ 帳號名稱已重複！");
+            return;
+        }
+
+        const selectedRoles = [];
+        if (isHome) selectedRoles.push('homeroom');
+        if (isCase) selectedRoles.push('case');
+        if (isTeach) selectedRoles.push('teacher');
+        if (isAdmin) selectedRoles.push('admin');
+
+        systemMasterData.teachers.push({
+            name: name,
+            username: username,
+            password: password,
+            roles: selectedRoles,
+            role_desc: roleDesc,
+            homeroom_scope: homeroomScope,
+            case_scope: caseScope,
+            teacher_scope: teacherScope
+        });
+
+        await saveSystemData();
+        document.getElementById('addTName').value = '';
+        document.getElementById('addTUser').value = '';
+        document.getElementById('addTPwd').value = '';
+        document.getElementById('addTRole').value = '';
+        document.getElementById('addTHomeroomScope').value = '';
+        document.getElementById('addTCaseScope').value = '';
+        document.getElementById('addTTeacherScope').value = '';
+        alert("✅ 已成功新增教職員！");
+    }
+
+    async function resetUserPassword(idx) {
+        const teacher = systemMasterData.teachers[idx];
+        if (!teacher) return;
+
+        const newPwd = prompt(`🔑 請輸入教職員 [${teacher.name}] 的新密碼:`);
+        if (newPwd !== null && newPwd.trim() !== '') {
+            teacher.password = newPwd.trim();
+            await saveSystemData();
+            alert("✅ 密碼已更新成功！");
+        }
+    }
+
+    async function updateTeacherScopes(idx) {
+        const teacher = systemMasterData.teachers[idx];
+        if (!teacher) return;
+
+        const isHome = document.getElementById(`editTRole_home_${idx}`).checked;
+        const isCase = document.getElementById(`editTRole_case_${idx}`).checked;
+        const isTeach = document.getElementById(`editTRole_teach_${idx}`).checked;
+        const isAdmin = document.getElementById(`editTRole_admin_${idx}`).checked;
+
+        const selectedRoles = [];
+        if (isHome) selectedRoles.push('homeroom');
+        if (isCase) selectedRoles.push('case');
+        if (isTeach) selectedRoles.push('teacher');
+        if (isAdmin) selectedRoles.push('admin');
+
+        teacher.roles = selectedRoles;
+        teacher.homeroom_scope = document.getElementById(`editTHome_${idx}`).value.trim();
+        teacher.case_scope = document.getElementById(`editTCase_${idx}`).value.trim();
+        teacher.teacher_scope = document.getElementById(`editTTeach_${idx}`).value.trim();
+
+        await saveSystemData();
+        alert("✅ 教職員權限設定已儲存！");
+    }
+
+    async function deleteTeacherHand(idx) {
+        if (!confirm("⚠️ 確定要刪除此教職員帳號嗎？")) return;
+        systemMasterData.teachers.splice(idx, 1);
+        await saveSystemData();
+    }
+
+    async function sendAiChatMessage() {
+        const input = document.getElementById('aiUserInput');
+        const chatBox = document.getElementById('aiChatBox');
+        const text = input.value.trim();
+        if (!text) return;
+
+        chatBox.innerHTML += `
+            <div style="text-align: right;">
+                <span style="background: #0056b3; color: white; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; max-width: 88%; text-align: left; line-height: 1.4;">
+                    ${escapeHtml(text)}
+                </span>
+            </div>`;
+        input.value = '';
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        const loadingId = 'aiLoading_' + Date.now();
+        chatBox.innerHTML += `
+            <div id="${loadingId}" style="text-align: left;">
+                <span style="background: #e9ecef; color: #666; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; font-style: italic;">
+                    思考中... ⏳
+                </span>
+            </div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const currentStudent = systemMasterData.students[selectedStudentIndex];
+            const res = await secureFetch('/api/sen-chat', {
+                method: 'POST',
+                body: JSON.stringify({
+                    prompt: text,
+                    studentContext: currentStudent ? {
+                        name: currentStudent.name,
+                        sen_category: currentStudent.sen_category,
+                        profile: currentStudent.profile
+                    } : null
+                })
+            });
+            const data = await res.json();
+            
+            const loadingElem = document.getElementById(loadingId);
+            if (loadingElem) loadingElem.remove();
+
+            chatBox.innerHTML += `
+                <div style="text-align: left;">
+                    <span style="background: #e9ecef; color: #212529; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; max-width: 88%; line-height: 1.4; white-space: pre-wrap;">
+                        ${escapeHtml(data.reply || '暫時無法取得 AI 回覆。')}
+                    </span>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } catch (err) {
+            const loadingElem = document.getElementById(loadingId);
+            if (loadingElem) loadingElem.remove();
+
+            chatBox.innerHTML += `
+                <div style="text-align: left;">
+                    <span style="background: #f8d7da; color: #721c24; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px;">
+                        ❌ AI 服務暫時無法連線。
+                    </span>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+
+    window.onload = function() {
+        loadSystemData();
+    };
+</script>
+
+</body>
+</html>
