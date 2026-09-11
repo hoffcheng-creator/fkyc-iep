@@ -2,3 +2,6 @@ project_id = "atbptsrpubmefyydgnde"
 
 [functions.sen-chat]
 verify_jwt = true
+
+[functions.create-teacher]
+verify_jwt = true

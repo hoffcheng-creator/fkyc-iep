@@ -1830,30 +1830,34 @@
         if (isTeach) selectedRoles.push('teacher');
         if (isAdmin) selectedRoles.push('admin');
 
-        const email = loginEmailFromInput(username);
-        const { data: adminWrap } = await supabase.auth.getSession();
-        const adminSession = adminWrap && adminWrap.session;
-        const { data: signData, error: signErr } = await supabase.auth.signUp({
-            email: email,
-            password: password,
-            options: { data: { username: username, name: name, roles: selectedRoles } }
+        const { data, error } = await supabase.functions.invoke('create-teacher', {
+            body: {
+                name: name,
+                username: username,
+                password: password,
+                role_desc: roleDesc,
+                roles: selectedRoles,
+                homeroom_scope: homeroomScope,
+                case_scope: caseScope,
+                teacher_scope: teacherScope
+            }
         });
-        if (adminSession) {
-            await supabase.auth.setSession({
-                access_token: adminSession.access_token,
-                refresh_token: adminSession.refresh_token
-            });
+        const payload = data || {};
+        if (error && !payload.success) {
+            alert('❌ 無法建立教職員：' + (payload.message || error.message || '未知錯誤'));
+            return;
         }
-        if (signErr || !signData || !signData.user) {
-            alert('❌ 無法建立 Auth 帳號：' + ((signErr && signErr.message) || '請改到 Dashboard → Authentication 新增'));
+        if (!payload.success) {
+            alert('❌ 無法建立教職員：' + (payload.message || '未知錯誤'));
             return;
         }
 
+        const created = payload.teacher || {};
         systemMasterData.teachers.push({
-            id: signData.user.id,
+            id: created.id,
             name: name,
             username: username,
-            email: email,
+            email: created.email || (username.includes('@') ? username : username + '@fkyc.edu.hk'),
             roles: selectedRoles,
             role: selectedRoles.includes('admin') ? 'admin' : 'teacher',
             role_desc: roleDesc,
@@ -1862,7 +1866,7 @@
             teacher_scope: teacherScope
         });
 
-        await saveSystemData();
+        await loadSystemData();
         document.getElementById('addTName').value = '';
         document.getElementById('addTUser').value = '';
         document.getElementById('addTPwd').value = '';
