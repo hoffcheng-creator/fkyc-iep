@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>粉嶺救恩書院 Fanling Kau Yan College - 特教統籌交叉權限系統 (SECURE)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2.57.4/dist/umd/supabase.js'"></script>
     <!-- 引入 SheetJS 用於 Excel 匯入與匯出 -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- 引入 docx.js 用於前端備援匯出 Word -->
-    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 <style>
     body { 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
@@ -167,7 +168,7 @@
 <body>
 
 <div id="loginLayout" class="login-screen">
-    <img src="source/20d8a89f.png" alt="粉嶺救恩書院 Fanling Kau Yan College" style="width: 100%; height: auto; display: block; margin: 0; padding: 0;">
+    <img src="source/20d8a89f.png" alt="粉嶺救恩書院 Fanling Kau Yan College" style="width: 100%; height: auto; display: block; margin: 0; padding: 0;" onerror="this.style.display='none'">
     
     <div style="padding: 25px 30px 30px 30px;">
         <div style="font-weight: bold; color: #2c3e50; margin-bottom: 20px; font-size: 16px; text-align: center;">特教統籌系統登入 (SECURE)</div>
@@ -175,13 +176,13 @@
         <div id="serverStatusText" style="color:#d97706; font-size:13px; margin-bottom:15px; font-weight:bold; text-align:center;">⚙️ 請輸入憑證以登入系統...</div>
         <input type="text" id="loginUser" class="login-input" placeholder="請輸入使用者名稱 (例如: admin)" value="" oninput="hideLoginError()">
         <input type="password" id="loginPwd" class="login-input" placeholder="請輸入登入密碼" value="" oninput="hideLoginError()" onkeypress="if(event.keyCode===13) executeLogin()">
-        <button class="btn-login" id="btnExecuteLoginTrigger" onclick="executeLogin()">確認登入</button>
+        <button type="button" class="btn-login" id="btnExecuteLoginTrigger">確認登入</button>
     </div>
 </div>
 
 <div id="mainSystemLayout" class="container hide-view">
     <div style="width: 100%; margin-bottom: 20px; text-align: center;">
-        <img src="source/header_2.png" alt="粉嶺救恩書院 IEP System" style="width: 100%; max-width: 1300px; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <img src="source/header_2.png" alt="粉嶺救恩書院 IEP System" style="width: 100%; max-width: 1300px; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display='none'">
     </div>
     <div class="top-bar">
         <div>
@@ -214,7 +215,7 @@
                 </div>
             </div>
             <div class="excel-btn-group">
-                <input type="file" id="excelStudentInput" accept=".xlsx, .xls, .csv, text/csv," style="display:none;" onchange="handleImportStudentExcel(event)">
+                <input type="file" id="excelStudentInput" accept=".xlsx, .xls, .csv, text/csv" style="display:none;" onchange="handleImportStudentExcel(event)">
                 <button class="btn-excel-import" onclick="document.getElementById('excelStudentInput').click()">
                     📂 匯入學生 Excel 表
                 </button>
@@ -269,7 +270,7 @@
                 </div>
             </div>
             <div class="excel-btn-group">
-                <input type="file" id="excelTeacherInput" accept=".xlsx, .xls, .csv, text/csv," style="display:none;" onchange="handleImportTeacherExcel(event)">
+                <input type="file" id="excelTeacherInput" accept=".xlsx, .xls, .csv, text/csv" style="display:none;" onchange="handleImportTeacherExcel(event)">
                 <button class="btn-excel-import-blue" onclick="document.getElementById('excelTeacherInput').click()">
                     📂 匯入教職員 Excel 表
                 </button>
@@ -352,7 +353,7 @@
                     <div id="profileContainerBlock">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                             <strong>📝 學生個人簡介 (Profile Summary)：</strong>
-                            <button id="btnEditProfile" class="btn-action-edit" onclick="toggleProfileEditMode()">✏️ 編輯簡介</button>
+                            <button id="btnEditProfile" class="btn-action-edit" onclick="toggleProfileEditMode(true)">✏️ 編輯簡介</button>
                         </div>
                         <div id="profileDisplayView" class="student-profile-box">---</div>
                         
@@ -503,11 +504,40 @@
 </div>
 
 <script>
+    const SUPABASE_URL = 'https://atbptsrpubmefyydgnde.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DSTQXS6SUNnECcpoQauqmQ_iaGVxLuQ';
+    const CLINICAL_BUCKET = 'clinical-docs';
+    const EMAIL_DOMAIN = 'iep.internal';
+
+    let supabase = null;
+    function getSupabaseLib() {
+        return window.supabase || window.supabaseJs || null;
+    }
+    function initSupabase() {
+        if (supabase) return supabase;
+        const lib = getSupabaseLib();
+        const status = document.getElementById('serverStatusText');
+        if (!lib || typeof lib.createClient !== 'function') {
+            if (status) status.innerText = '❌ 無法載入登入元件（Supabase SDK）。請重新整理，或檢查是否被網絡攔截。';
+            return null;
+        }
+        try {
+            supabase = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+            });
+            return supabase;
+        } catch (err) {
+            console.error('Supabase init failed', err);
+            if (status) status.innerText = '❌ 初始化登入失敗：' + (err && err.message ? err.message : err);
+            return null;
+        }
+    }
+
     const AuthManager = {
         getToken() { return localStorage.getItem('jwt_token'); },
         setSession(token, user) {
-            localStorage.setItem('jwt_token', token);
-            localStorage.setItem('user_info', JSON.stringify(user));
+            localStorage.setItem('jwt_token', token || '');
+            localStorage.setItem('user_info', JSON.stringify(user || {}));
         },
         clearSession() {
             localStorage.removeItem('jwt_token');
@@ -516,7 +546,13 @@
         },
         getUser() {
             const u = localStorage.getItem('user_info');
-            return u ? JSON.parse(u) : null;
+            if (!u || u === 'null' || u === 'undefined') return null;
+            try {
+                const parsed = JSON.parse(u);
+                return parsed && typeof parsed === 'object' ? parsed : null;
+            } catch (e) {
+                return null;
+            }
         }
     };
 
@@ -525,136 +561,337 @@
     let selectedStudentIndex = 0;
 
     function escapeHtml(text) {
-        if (!text) return '';
+        if (text === null || text === undefined) return '';
         return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
     function hideLoginError() {
-        document.getElementById('loginError').style.display = 'none';
+        const errDiv = document.getElementById('loginError');
+        if (errDiv) errDiv.style.display = 'none';
     }
+    window.hideLoginError = hideLoginError;
 
     function toggleScopeInputState(checkboxId, inputId) {
         const checkbox = document.getElementById(checkboxId);
         const input = document.getElementById(inputId);
         if (checkbox && input) {
             input.disabled = !checkbox.checked;
-            if (!checkbox.checked) {
-                input.value = '';
-            }
+            if (!checkbox.checked) input.value = '';
         }
     }
+    window.toggleScopeInputState = toggleScopeInputState;
 
-    async function secureFetch(url, options = {}) {
-        if (!options.headers) options.headers = {};
-        if (!(options.body instanceof FormData)) {
-            options.headers['Content-Type'] = 'application/json';
-        }
-        options.headers['Authorization'] = `Bearer ${AuthManager.getToken()}`;
-        
-        const response = await fetch(url, options);
-        if (response.status === 401 || response.status === 403) {
+    function isAdminSession(user) {
+        if (!user) return false;
+        const roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
+        return roles.includes('admin') || user.role === 'admin';
+    }
+
+    function loginEmailCandidates(raw) {
+        const u = String(raw || '').trim();
+        if (!u) return [];
+        if (u.includes('@')) return [u];
+        const lower = u.toLowerCase();
+        const list = [
+            u + '@fkyc.edu.hk',
+            lower + '@fkyc.edu.hk',
+            u + '@iep.internal',
+            lower + '@iep.internal'
+        ];
+        const seen = {};
+        return list.filter(function (email) {
+            const k = email.toLowerCase();
+            if (seen[k]) return false;
+            seen[k] = true;
+            return true;
+        });
+    }
+
+    function loginEmailFromInput(raw) {
+        const list = loginEmailCandidates(raw);
+        return list.length ? list[0] : '';
+    }
+
+    function teacherToSession(row) {
+        if (!row) return null;
+        const roles = Array.isArray(row.roles) ? row.roles : [];
+        return {
+            id: row.id,
+            username: row.username,
+            name: row.name,
+            role: row.role || (roles.includes('admin') ? 'admin' : 'teacher'),
+            role_desc: row.role_desc || '',
+            roles: roles,
+            homeroom_scope: row.homeroom_scope || '',
+            case_scope: row.case_scope || '',
+            teacher_scope: row.teacher_scope || '',
+            email: row.email || ''
+        };
+    }
+
+    function toFrontendStudent(row) {
+        if (!row) return null;
+        const iep = row.iep_data && typeof row.iep_data === 'object' && !Array.isArray(row.iep_data) ? row.iep_data : {};
+        return Object.assign({}, iep, {
+            id: row.student_id,
+            name: row.name,
+            medical_notes: row.medical_notes || iep.medical_notes || ''
+        });
+    }
+
+    function toDbStudent(student) {
+        if (!student) return null;
+        const clone = Object.assign({}, student);
+        const studentId = clone.id || clone.student_id;
+        if (!studentId) return null;
+        delete clone.id;
+        delete clone.student_id;
+        const name = clone.name || '';
+        delete clone.name;
+        const medicalNotes = clone.medical_notes || '';
+        delete clone.medical_notes;
+        delete clone.password;
+        return { student_id: String(studentId).trim(), name: name, medical_notes: medicalNotes, iep_data: clone };
+    }
+
+    function toDbTeacher(t) {
+        if (!t || !t.id) return null;
+        return {
+            id: t.id,
+            username: t.username,
+            email: t.email || loginEmailFromInput(t.username),
+            name: t.name || '',
+            role: t.role || 'teacher',
+            role_desc: t.role_desc || '',
+            roles: Array.isArray(t.roles) ? t.roles : [],
+            homeroom_scope: t.homeroom_scope || '',
+            case_scope: t.case_scope || '',
+            teacher_scope: t.teacher_scope || ''
+        };
+    }
+
+    function handleAuthError(error) {
+        const msg = (error && (error.message || error.error_description)) || '';
+        if (/jwt|session|not authenticated|invalid/i.test(msg)) {
             alert("⚠️ 您的登入 Session 已失效，請重新登入。");
             executeLogout();
-            throw new Error("Unauthorized");
+            return true;
         }
-        return response;
+        return false;
     }
 
     async function executeLogin() {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPwd').value.trim();
-        if(!u || !p) { alert("請輸入帳號與密碼"); return; }
+        if (!u || !p) { alert("請輸入帳號與密碼"); return; }
+        if (!initSupabase()) {
+            alert("❌ 無法載入登入元件，請重新整理頁面。");
+            return;
+        }
+
+        const btn = document.getElementById('btnExecuteLoginTrigger');
+        const status = document.getElementById('serverStatusText');
+        if (btn) { btn.disabled = true; btn.innerText = '登入中...'; }
+        if (status) status.innerText = '正在驗證帳號...';
 
         try {
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, password: p })
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                AuthManager.setSession(data.token, data.user);
-                sessionStorage.setItem('selected_student_idx', '0');
-                const isUserAdmin = Array.isArray(data.user.roles) ? data.user.roles.includes('admin') : data.user.role === 'admin';
-                sessionStorage.setItem('current_system_view_mode', isUserAdmin ? 'senco' : 'teacher');
-                window.location.reload();
-            } else {
-                document.getElementById('loginError').style.display = 'block';
+            const emails = loginEmailCandidates(u);
+            let data = null;
+            let error = null;
+            for (let i = 0; i < emails.length; i++) {
+                const attempt = await supabase.auth.signInWithPassword({ email: emails[i], password: p });
+                if (!attempt.error && attempt.data && attempt.data.user) {
+                    data = attempt.data;
+                    error = null;
+                    break;
+                }
+                error = attempt.error;
             }
+            if (error || !data || !data.user) {
+                const errDiv = document.getElementById('loginError');
+                if (errDiv) {
+                    errDiv.style.display = 'block';
+                    errDiv.innerText = '❌ 使用者名稱或密碼錯誤！請確認係 Authentication 設定嘅密碼。';
+                }
+                if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
+                if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
+                return;
+            }
+
+            let teacherRow = null;
+            const byId = await supabase.from('teachers').select('*').eq('id', data.user.id).maybeSingle();
+            if (!byId.error && byId.data) teacherRow = byId.data;
+            if (!teacherRow) {
+                const byUser = await supabase.from('teachers').select('*').eq('username', u).maybeSingle();
+                if (!byUser.error && byUser.data) teacherRow = byUser.data;
+            }
+
+            const sessionUser = teacherToSession(teacherRow) || {
+                id: data.user.id,
+                username: u,
+                name: (data.user.user_metadata && data.user.user_metadata.name) || u,
+                role: 'teacher',
+                roles: ['teacher'],
+                homeroom_scope: '',
+                case_scope: '',
+                teacher_scope: '',
+                email: data.user.email || ''
+            };
+
+            AuthManager.setSession(data.session && data.session.access_token, sessionUser);
+            if (data.session) {
+                await supabase.auth.setSession({
+                    access_token: data.session.access_token,
+                    refresh_token: data.session.refresh_token
+                });
+            }
+            sessionStorage.setItem('selected_student_idx', '0');
+            sessionStorage.setItem('current_system_view_mode', isAdminSession(sessionUser) ? 'senco' : 'teacher');
+            window.location.reload();
         } catch (err) {
-            alert("❌ 登入連線失敗，請檢查後端伺服器 (Node.js) 是否已啟動。");
+            alert("❌ 登入連線失敗，請檢查網絡或 Supabase 設定。");
+            const btn = document.getElementById('btnExecuteLoginTrigger');
+            if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
         }
     }
+    window.executeLogin = executeLogin;
 
-    function executeLogout() {
+    async function executeLogout() {
+        try { await supabase.auth.signOut(); } catch (e) {}
         AuthManager.clearSession();
         window.location.reload();
     }
+    window.executeLogout = executeLogout;
 
     async function loadSystemData() {
-        currentUserSession = AuthManager.getUser();
-        if (!currentUserSession || !AuthManager.getToken()) {
+        if (!initSupabase()) return;
+        const { data: sessWrap } = await supabase.auth.getSession();
+        const session = sessWrap && sessWrap.session;
+
+        if (!session || !session.user) {
+            AuthManager.clearSession();
             document.getElementById('loginLayout').classList.remove('hide-view');
             document.getElementById('mainSystemLayout').classList.add('hide-view');
             document.getElementById('aiFloatingContainer').classList.add('hide-view');
             return;
         }
 
+        let teacherRow = null;
+        const byId = await supabase.from('teachers').select('*').eq('id', session.user.id).maybeSingle();
+        if (byId.error) { handleAuthError(byId.error); }
+        if (byId.data) teacherRow = byId.data;
+
+        currentUserSession = teacherToSession(teacherRow) || AuthManager.getUser();
+        if (!currentUserSession) {
+            currentUserSession = {
+                id: session.user.id,
+                username: session.user.email,
+                name: session.user.email,
+                role: 'teacher',
+                roles: ['teacher']
+            };
+        }
+        AuthManager.setSession(session.access_token, currentUserSession);
+        await supabase.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token
+        });
+
         document.getElementById('loginLayout').classList.add('hide-view');
         document.getElementById('mainSystemLayout').classList.remove('hide-view');
         document.getElementById('aiFloatingContainer').classList.remove('hide-view');
 
         try {
-            const res = await secureFetch('/api/get-all-data');
-            if (res.ok) {
-                const serverData = await res.json();
-                systemMasterData.students = serverData.students || [];
-                systemMasterData.teachers = serverData.users || [];
-                
-                const isUserAdmin = Array.isArray(currentUserSession.roles) ? currentUserSession.roles.includes('admin') : currentUserSession.role === 'admin';
-                
-                document.getElementById('txtLoggedTeacherName').innerText = currentUserSession.name || currentUserSession.username;
-                document.getElementById('txtLoggedTeacherRole').innerText = isUserAdmin ? '最高管理員' : (Array.isArray(currentUserSession.roles) ? currentUserSession.roles.join(', ') : '教職員');
-
-                const adminNavGroup = document.getElementById('adminNavGroup');
-                if (adminNavGroup) {
-                    adminNavGroup.style.display = isUserAdmin ? 'flex' : 'none';
-                }
-
-                buildStudentDropdown();
-                let savedViewMode = sessionStorage.getItem('current_system_view_mode');
-                if (!isUserAdmin) savedViewMode = 'teacher';
-                changeSystemView(savedViewMode || 'teacher');
-                renderAllUI();
+            const stRes = await supabase.from('students').select('*').order('student_id');
+            if (stRes.error) {
+                if (!handleAuthError(stRes.error)) alert('讀取學生資料失敗：' + stRes.error.message);
+                return;
             }
+            systemMasterData.students = (stRes.data || []).map(toFrontendStudent);
+            if (!systemMasterData.students.length && session.access_token) {
+                try {
+                    const fallback = await fetch(SUPABASE_URL + '/rest/v1/students?select=*&order=student_id', {
+                        headers: {
+                            apikey: SUPABASE_ANON_KEY,
+                            Authorization: 'Bearer ' + session.access_token,
+                            Accept: 'application/json'
+                        }
+                    });
+                    if (fallback.ok) {
+                        const rows = await fallback.json();
+                        systemMasterData.students = (rows || []).map(toFrontendStudent);
+                    }
+                } catch (e) {}
+            }
+
+            if (isAdminSession(currentUserSession)) {
+                const tRes = await supabase.from('teachers').select('*').order('username');
+                systemMasterData.teachers = tRes.error ? [] : (tRes.data || []).map(function (row) {
+                    const u = teacherToSession(row);
+                    return u;
+                });
+            } else {
+                systemMasterData.teachers = [];
+            }
+
+            const isUserAdmin = isAdminSession(currentUserSession);
+            document.getElementById('txtLoggedTeacherName').innerText = currentUserSession.name || currentUserSession.username || '';
+            document.getElementById('txtLoggedTeacherRole').innerText = isUserAdmin
+                ? '最高管理員'
+                : (Array.isArray(currentUserSession.roles) ? currentUserSession.roles.join(', ') : (currentUserSession.role || '教職員'));
+
+            const adminNavGroup = document.getElementById('adminNavGroup');
+            if (adminNavGroup) adminNavGroup.style.display = isUserAdmin ? 'flex' : 'none';
+
+            buildStudentDropdown();
+            let savedViewMode = sessionStorage.getItem('current_system_view_mode');
+            if (!isUserAdmin) savedViewMode = 'teacher';
+            changeSystemView(savedViewMode || 'teacher');
+            renderAllUI();
         } catch (err) {
             console.error("載入失敗:", err);
         }
     }
+    window.loadSystemData = loadSystemData;
 
     async function saveSystemData() {
         try {
-            await secureFetch('/api/save-all-data', {
-                method: 'POST',
-                body: JSON.stringify({
-                    students: systemMasterData.students,
-                    users: systemMasterData.teachers
-                })
-            });
+            const studentRows = (systemMasterData.students || []).map(toDbStudent).filter(Boolean);
+            if (studentRows.length) {
+                const { error } = await supabase.from('students').upsert(studentRows, { onConflict: 'student_id' });
+                if (error) {
+                    if (!handleAuthError(error)) alert('儲存學生資料失敗：' + error.message);
+                    return;
+                }
+            }
 
-            const me = systemMasterData.teachers.find(t => t.username === currentUserSession.username);
-            if (me) {
-                currentUserSession = { ...currentUserSession, ...me };
-                localStorage.setItem('user_info', JSON.stringify(currentUserSession));
+            if (isAdminSession(currentUserSession)) {
+                const teacherRows = (systemMasterData.teachers || []).map(toDbTeacher).filter(Boolean);
+                if (teacherRows.length) {
+                    const { error } = await supabase.from('teachers').upsert(teacherRows, { onConflict: 'id' });
+                    if (error) {
+                        if (!handleAuthError(error)) alert('儲存教職員資料失敗：' + error.message);
+                        return;
+                    }
+                }
+            }
+
+            if (currentUserSession) {
+                const me = (systemMasterData.teachers || []).find(t => t.username === currentUserSession.username);
+                if (me) {
+                    currentUserSession = Object.assign({}, currentUserSession, teacherToSession(me) || me);
+                    localStorage.setItem('user_info', JSON.stringify(currentUserSession));
+                }
             }
 
             buildStudentDropdown();
             renderAllUI();
-        } catch (e) {
+        } catch (error) {
+            console.error('儲存時發生錯誤：', error);
             alert("儲存變更失敗");
         }
     }
+    window.saveSystemData = saveSystemData;
 
     function handleImportStudentExcel(event) {
         const file = event.target.files[0];
@@ -730,6 +967,7 @@
         };
         reader.readAsArrayBuffer(file);
     }
+    window.handleImportStudentExcel = handleImportStudentExcel;
 
     function exportStudentsToExcel() {
         if (!systemMasterData.students || systemMasterData.students.length === 0) {
@@ -756,6 +994,7 @@
         const fileName = `學生名冊_${new Date().toISOString().slice(0, 10)}.xlsx`;
         XLSX.writeFile(workbook, fileName);
     }
+    window.exportStudentsToExcel = exportStudentsToExcel;
 
     function handleImportTeacherExcel(event) {
         const file = event.target.files[0];
@@ -832,6 +1071,7 @@
         };
         reader.readAsArrayBuffer(file);
     }
+    window.handleImportTeacherExcel = handleImportTeacherExcel;
 
     function exportTeachersToExcel() {
         if (!systemMasterData.teachers || systemMasterData.teachers.length === 0) {
@@ -856,6 +1096,7 @@
         const fileName = `教職員名冊_${new Date().toISOString().slice(0, 10)}.xlsx`;
         XLSX.writeFile(workbook, fileName);
     }
+    window.exportTeachersToExcel = exportTeachersToExcel;
 
     const checkUserRelation = function(studentId) {
         if (!currentUserSession) return { isHomeroom: false, isCaseManager: false, isSubjectTeacher: false, isAdmin: false };
@@ -879,10 +1120,12 @@
         const teachList = parseList(currentUserSession.teacher_scope);
 
         const sId = (studentId || '').toLowerCase();
+        const inList = (list) => list.includes('all') || list.includes(sId);
 
-        const isHomeroomMatch = isHomeRole && (homeList.includes('all') || homeList.includes(sId));
-        const isCaseMatch = isCaseRole && (caseList.includes('all') || caseList.includes(sId));
-        const isSubjectMatch = isTeachRole && (teachList.includes('all') || teachList.includes(sId));
+        // Scope 命中即有權；唔再要求必須同時勾選對應角色（否則有 scope 都睇唔到學生）
+        const isHomeroomMatch = inList(homeList) || (isHomeRole && inList(homeList));
+        const isCaseMatch = inList(caseList) || (isCaseRole && inList(caseList));
+        const isSubjectMatch = inList(teachList) || (isTeachRole && inList(teachList));
 
         return {
             isHomeroom: isHomeroomMatch,
@@ -912,16 +1155,19 @@
             dropdown.appendChild(opt);
         });
 
-        selectedStudentIndex = parseInt(dropdown.options[0].value);
-        dropdown.value = selectedStudentIndex;
+        const saved = parseInt(sessionStorage.getItem('selected_student_idx') || '0', 10);
+        selectedStudentIndex = (!Number.isNaN(saved) && saved >= 0 && saved < accessibleStudents.length) ? saved : 0;
+        dropdown.value = String(selectedStudentIndex);
     }
 
     function handleStudentChange(index) {
-        if(parseInt(index) === -1) return;
-        selectedStudentIndex = parseInt(index);
+        if(parseInt(index, 10) === -1) return;
+        selectedStudentIndex = parseInt(index, 10);
+        sessionStorage.setItem('selected_student_idx', String(selectedStudentIndex));
         toggleProfileEditMode(false);
         renderAllUI();
     }
+    window.handleStudentChange = handleStudentChange;
 
     function changeSystemView(viewMode) {
         const isUserAdmin = Array.isArray(currentUserSession?.roles) ? currentUserSession.roles.includes('admin') : currentUserSession?.role === 'admin';
@@ -930,7 +1176,12 @@
         document.getElementById('sectionSencoManagementAreas').classList.toggle('hide-view', viewMode !== 'senco');
         document.getElementById('sectionTeacherFrontAreas').classList.toggle('hide-view', viewMode !== 'teacher');
         document.getElementById('txtCurrentModeHeader').innerText = viewMode === 'teacher' ? "老師查閱前台模式" : "SENCO 管理模式";
+        const navTeacher = document.getElementById('navBtnTeacher');
+        const navSenco = document.getElementById('navBtnSenco');
+        if (navTeacher) navTeacher.classList.toggle('active-teacher', viewMode === 'teacher');
+        if (navSenco) navSenco.classList.toggle('active-senco', viewMode === 'senco');
     }
+    window.changeSystemView = changeSystemView;
 
     function toggleProfileEditMode(enable = true) {
         const displayView = document.getElementById('profileDisplayView');
@@ -940,15 +1191,16 @@
         if (enable) {
             const student = systemMasterData.students[selectedStudentIndex];
             document.getElementById('txtProfileInput').value = student ? (student.profile || '') : '';
-            displayView.classList.add('hide-view');
-            editArea.classList.remove('hide-view');
-            btnEdit.classList.add('hide-view');
+            if (displayView) displayView.classList.add('hide-view');
+            if (editArea) editArea.classList.remove('hide-view');
+            if (btnEdit) btnEdit.classList.add('hide-view');
         } else {
-            displayView.classList.remove('hide-view');
-            editArea.classList.add('hide-view');
-            btnEdit.classList.remove('hide-view');
+            if (displayView) displayView.classList.remove('hide-view');
+            if (editArea) editArea.classList.add('hide-view');
+            if (btnEdit) btnEdit.classList.remove('hide-view');
         }
     }
+    window.toggleProfileEditMode = toggleProfileEditMode;
 
     async function saveStudentProfile() {
         const student = systemMasterData.students[selectedStudentIndex];
@@ -961,8 +1213,8 @@
         toggleProfileEditMode(false);
         alert("✅ 學生簡介已順利更新！");
     }
+    window.saveStudentProfile = saveStudentProfile;
 
-    // 保存 IEP 檢討報告
     async function saveIepReviewReport() {
         const student = systemMasterData.students[selectedStudentIndex];
         if (!student) return;
@@ -972,8 +1224,8 @@
         await saveSystemData();
         alert("✅ IEP 檢討報告已成功儲存！");
     }
+    window.saveIepReviewReport = saveIepReviewReport;
 
-    // 保存小組支援活動
     async function saveGroupSupportActivities() {
         const student = systemMasterData.students[selectedStudentIndex];
         if (!student) return;
@@ -983,8 +1235,8 @@
         await saveSystemData();
         alert("✅ 小組支援活動紀錄已成功儲存！");
     }
+    window.saveGroupSupportActivities = saveGroupSupportActivities;
 
-    // AI 輔助綜合生成 IEP 檢討報告
     async function generateAiIepReviewReport() {
         const student = systemMasterData.students[selectedStudentIndex];
         if (!student) return;
@@ -1008,32 +1260,31 @@
 
 格式請包含：【支援項目綜合摘要】、【策略執行成效評估】及【未來改善建議】。以專業但客觀的教育語氣呈現。`;
 
-            const res = await secureFetch('/api/sen-chat', {
-                method: 'POST',
-                body: JSON.stringify({
-                    prompt: promptText,
-                    studentContext: {
-                        name: student.name,
-                        sen_category: student.sen_category,
-                        profile: student.profile
-                    }
-                })
+            const { data, error } = await supabase.functions.invoke('sen-chat', {
+                body: { prompt: promptText, studentId: student.id }
             });
-            const data = await res.json();
-
-            if (data && data.reply) {
-                document.getElementById('txtIepReviewReport').value = data.reply;
+            const payload = data || {};
+            if (error && !payload.reply) {
+                throw new Error(payload.message || error.message || 'API 無回覆');
+            }
+            if (payload.success === false) {
+                throw new Error(payload.message || 'API 無回覆');
+            }
+            if (payload.reply) {
+                document.getElementById('txtIepReviewReport').value = payload.reply;
                 alert("✨ AI 綜合報告生成完畢！請確認或編輯後點擊「儲存 IEP 檢討報告」。");
             } else {
-                alert("❌ 生成失敗，請再試一次。");
+                throw new Error(payload.message || "API 無回覆");
             }
         } catch (err) {
-            alert("❌ AI 綜合生成失敗，請確認 AI 伺服器狀態。");
+            if (err && err.message === 'Unauthorized') return;
+            alert("❌ 生成失敗，請確認已部署 Edge Function sen-chat 並設定 GEMINI_API_KEY。");
         } finally {
             btn.disabled = false;
             btn.innerText = '✨ AI 輔助綜合生成';
         }
     }
+    window.generateAiIepReviewReport = generateAiIepReviewReport;
 
     function renderGoals(type, containerId, canEdit) {
         const ul = document.getElementById(containerId);
@@ -1063,6 +1314,7 @@
         if (!val) return;
 
         const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
         if (!student.goals) student.goals = { short: [], mid: [], long: [] };
         if (!student.goals[type]) student.goals[type] = [];
 
@@ -1070,6 +1322,7 @@
         await saveSystemData();
         input.value = '';
     }
+    window.addGoalItem = addGoalItem;
 
     async function deleteGoalItem(type, idx) {
         const student = systemMasterData.students[selectedStudentIndex];
@@ -1078,6 +1331,7 @@
             await saveSystemData();
         }
     }
+    window.deleteGoalItem = deleteGoalItem;
 
     function renderAccommodations(canEdit) {
         const ul = document.getElementById('accommodationList');
@@ -1106,12 +1360,14 @@
         if (!val) return;
 
         const student = systemMasterData.students[selectedStudentIndex];
+        if (!student) return;
         if (!student.accommodations) student.accommodations = [];
 
         student.accommodations.push(val);
         await saveSystemData();
         input.value = '';
     }
+    window.addAccommodationItem = addAccommodationItem;
 
     async function deleteAccommodationItem(idx) {
         const student = systemMasterData.students[selectedStudentIndex];
@@ -1120,6 +1376,7 @@
             await saveSystemData();
         }
     }
+    window.deleteAccommodationItem = deleteAccommodationItem;
 
     function renderAllUI() {
         const studentTbody = document.getElementById('studentBackpackTableBody');
@@ -1197,16 +1454,26 @@
 
         // 更新 IEP 檢討報告 數據與權限
         const txtIep = document.getElementById('txtIepReviewReport');
-        txtIep.value = student.iep_review_report || '';
-        txtIep.disabled = !canEditIEPAndAccom;
-        document.getElementById('btnAiGenerateReport').style.display = canEditIEPAndAccom ? 'inline-flex' : 'none';
-        document.getElementById('containerSaveIepReport').style.display = canEditIEPAndAccom ? 'block' : 'none';
+        if (txtIep) {
+            txtIep.value = student.iep_review_report || '';
+            txtIep.disabled = !canEditIEPAndAccom;
+        }
+        
+        const btnAiGen = document.getElementById('btnAiGenerateReport');
+        if (btnAiGen) btnAiGen.style.display = canEditIEPAndAccom ? 'inline-flex' : 'none';
+        
+        const cSaveIep = document.getElementById('containerSaveIepReport');
+        if (cSaveIep) cSaveIep.style.display = canEditIEPAndAccom ? 'block' : 'none';
 
         // 更新 小組支援活動 數據與權限
         const txtGroup = document.getElementById('txtGroupSupportActivities');
-        txtGroup.value = student.group_activities || '';
-        txtGroup.disabled = !canEditIEPAndAccom;
-        document.getElementById('containerSaveGroupActivities').style.display = canEditIEPAndAccom ? 'block' : 'none';
+        if (txtGroup) {
+            txtGroup.value = student.group_activities || '';
+            txtGroup.disabled = !canEditIEPAndAccom;
+        }
+        
+        const cSaveGrp = document.getElementById('containerSaveGroupActivities');
+        if (cSaveGrp) cSaveGrp.style.display = canEditIEPAndAccom ? 'block' : 'none';
 
         const btnExportWord = document.getElementById('btnExportWord');
         if (btnExportWord) {
@@ -1214,18 +1481,13 @@
         }
 
         const profileBlock = document.getElementById('profileContainerBlock');
-        if (profileBlock) {
-            profileBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
-        }
+        if (profileBlock) profileBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
+
         const btnEditProfile = document.getElementById('btnEditProfile');
-        if (btnEditProfile) {
-            btnEditProfile.style.display = canEditProfile ? 'inline-block' : 'none';
-        }
+        if (btnEditProfile) btnEditProfile.style.display = canEditProfile ? 'inline-block' : 'none';
 
         const clinicalBlock = document.getElementById('clinicalFilesContainerBlock');
-        if (clinicalBlock) {
-            clinicalBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
-        }
+        if (clinicalBlock) clinicalBlock.style.display = canSeeProfileAndDocs ? 'block' : 'none';
 
         renderGoals('short', 'goalListShort', canEditIEPAndAccom);
         renderGoals('mid', 'goalListMid', canEditIEPAndAccom);
@@ -1238,20 +1500,17 @@
         });
 
         const fileListDiv = document.getElementById('clinicalFileList');
-
         if (fileListDiv) {
             fileListDiv.innerHTML = '';
-
             const files = student.clinical_files || (student.docPath ? [student.docPath] : []);
 
             if (files.length > 0) {
                 files.forEach((fileName, fIndex) => {
-                    const fileUrl = `/api/files/${encodeURIComponent(fileName)}`;
-                    
+                    const encoded = encodeURIComponent(String(fileName || ''));
                     fileListDiv.innerHTML += `
                         <div class="web-file-row">
-                            <div class="web-file-info">📎 [文件 ${fIndex + 1}] <a href="${fileUrl}" target="_blank" class="web-file-link">${escapeHtml(fileName)}</a></div>
-                            <button style="background:#e53e3e; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;" onclick="deleteClinicalFile('${fileName}', ${fIndex})">❌ 刪除</button>
+                            <div class="web-file-info">📎 [文件 ${fIndex + 1}] <a href="#" class="web-file-link" data-file="${encoded}" onclick="event.preventDefault(); openClinicalFile(decodeURIComponent(this.dataset.file));">${escapeHtml(fileName)}</a></div>
+                            <button style="background:#e53e3e; color:white; border:none; padding:3px 8px; border-radius:4px; cursor:pointer;" data-file="${encoded}" onclick="deleteClinicalFile(decodeURIComponent(this.dataset.file), ${fIndex})">❌ 刪除</button>
                         </div>`;
                 });
             } else {
@@ -1285,31 +1544,16 @@
         }
 
         try {
-            const response = await secureFetch(`/api/export-iep-word/${student.id}`, {
-                method: 'GET'
-            });
-
-            if (!response.ok) {
-                throw new Error(`後端服務回應異常 (HTTP ${response.status})`);
-            }
-
-            const blob = await response.blob();
-            const downloadUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = `IEP_Report_${student.class || '無'}_${student.name}_${student.id}.docx`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(downloadUrl);
-
+            throw new Error('client-docx');
         } catch (error) {
+            // GitHub Pages 無 Node 匯出端點，改用瀏覽器 docx.js
             try {
                 if (typeof docx === 'undefined') {
-                    throw new Error("前端 docx 函式庫未成功載入");
+                    throw new Error("前端 docx 函式庫未載入");
                 }
 
-                const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+                const docxObj = window.docx || docx;
+                const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docxObj;
 
                 const goalsShort = (student.goals && student.goals.short) || [];
                 const goalsMid = (student.goals && student.goals.mid) || [];
@@ -1345,16 +1589,16 @@
 
                             new Paragraph({ text: "二、 個別學習計劃 (IEP) 目標", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
                             new Paragraph({ text: "短期目標：", bold: true }),
-                            ...(goalsShort.length > 0 ? goalsShort.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+                            ...(goalsShort.length > 0 ? goalsShort.map(g => new Paragraph({ text: `• ${g}` })) : [new Paragraph({ text: "（暫無）" })]),
                             new Paragraph({ text: "中期目標：", bold: true, space: { before: 100 } }),
-                            ...(goalsMid.length > 0 ? goalsMid.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+                            ...(goalsMid.length > 0 ? goalsMid.map(g => new Paragraph({ text: `• ${g}` })) : [new Paragraph({ text: "（暫無）" })]),
                             new Paragraph({ text: "長期目標：", bold: true, space: { before: 100 } }),
-                            ...(goalsLong.length > 0 ? goalsLong.map(g => new Paragraph({ text: `• ${g}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無）" })]),
+                            ...(goalsLong.length > 0 ? goalsLong.map(g => new Paragraph({ text: `• ${g}` })) : [new Paragraph({ text: "（暫無）" })]),
 
                             new Paragraph({ text: "三、 小組支援活動與考試調適安排", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
                             new Paragraph({ children: [new TextRun({ text: "小組支援活動：\n", bold: true }), new TextRun(student.group_activities || "（暫無活動紀錄）")] }),
-                            new Paragraph({ text: "\n考試調適安排：", bold: true, space: { before: 100 } }),
-                            ...(accommodations.length > 0 ? accommodations.map(a => new Paragraph({ text: `• ${a}`, bullet: { level: 0 } })) : [new Paragraph({ text: "（暫無特別調適）" })]),
+                            new Paragraph({ text: "考試調適安排：", bold: true, space: { before: 100 } }),
+                            ...(accommodations.length > 0 ? accommodations.map(a => new Paragraph({ text: `• ${a}` })) : [new Paragraph({ text: "（暫無特別調適）" })]),
 
                             new Paragraph({ text: "四、 課堂觀測與追蹤日誌", heading: HeadingLevel.HEADING_2, space: { before: 300, after: 100 } }),
                             ...(logs.length > 0 ? logs.map(l => new Paragraph({ text: `• ${l}` })) : [new Paragraph({ text: "（暫無日誌紀錄）" })]),
@@ -1377,13 +1621,14 @@
                 const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = downloadUrl;
-                a.download = `IEP_Report_${student.class || '無'}_${student.name}_${student.id}_Fallback.docx`;
+                a.download = `IEP_Report_${student.class || '無'}_${student.name}_${student.id}.docx`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
                 window.URL.revokeObjectURL(downloadUrl);
             } catch (fallbackErr) {
-                alert("❌ 匯出 Word 時發生錯誤，請檢查網路連線或聯絡系統管理員。");
+                console.error(fallbackErr);
+                alert("❌ 匯出 Word 報告時發生錯誤，請檢查瀏覽器相容性。");
             }
         } finally {
             if (exportBtn) {
@@ -1392,6 +1637,23 @@
             }
         }
     }
+    window.exportStudentIEPWord = exportStudentIEPWord;
+
+    async function openClinicalFile(fileName) {
+        if (!fileName) return;
+        try {
+            const objectPath = String(fileName).replace(/^\/+/, '');
+            const { data, error } = await supabase.storage.from(CLINICAL_BUCKET).createSignedUrl(objectPath, 120);
+            if (error || !data || !data.signedUrl) {
+                alert("❌ 無法開啟檔案。");
+                return;
+            }
+            window.open(data.signedUrl, '_blank', 'noopener');
+        } catch (err) {
+            alert("❌ 無法開啟檔案。");
+        }
+    }
+    window.openClinicalFile = openClinicalFile;
 
     async function handleClinicalFileUpload(e) {
         const file = e.target.files[0];
@@ -1400,30 +1662,32 @@
         const student = systemMasterData.students[selectedStudentIndex];
         if (!student) return;
 
-        const formData = new FormData();
-        formData.append('clinicalDoc', file);
-        formData.append('studentId', student.id);
-
         try {
-            const res = await secureFetch('/api/upload-clinical-doc', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                if (!student.clinical_files) student.clinical_files = [];
-                student.clinical_files.push(data.fileName);
-                await saveSystemData();
-                alert("✅ 醫療證明文件上傳成功！");
-            } else {
-                alert("❌ 上傳失敗: " + (data.message || '未知錯誤'));
+            const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+            const allowed = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
+            if (allowed.indexOf(ext) === -1) {
+                alert('❌ 只接受 PDF、DOCX、PNG、JPG。');
+                e.target.value = '';
+                return;
             }
+            const safeBase = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const objectPath = student.id + '/' + Date.now() + '_' + safeBase;
+            const { error } = await supabase.storage.from(CLINICAL_BUCKET).upload(objectPath, file, { upsert: true });
+            if (error) {
+                alert('❌ 上傳失敗: ' + error.message);
+                e.target.value = '';
+                return;
+            }
+            if (!student.clinical_files) student.clinical_files = [];
+            student.clinical_files.push(objectPath);
+            await saveSystemData();
+            alert("✅ 醫療證明文件上傳成功！");
         } catch (err) {
-            alert("❌ 檔案上傳發生錯誤，請檢查伺服器設定。");
+            alert("❌ 檔案上傳發生錯誤，請檢查 Storage Bucket clinical-docs。");
         }
         e.target.value = '';
     }
+    window.handleClinicalFileUpload = handleClinicalFileUpload;
 
     async function deleteClinicalFile(fileName, fIndex) {
         if (!confirm(`⚠️ 確定要刪除證明文件「${fileName}」嗎？`)) return;
@@ -1432,24 +1696,18 @@
         if (!student) return;
 
         try {
-            await secureFetch('/api/delete-physical-file', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    studentId: student.id, 
-                    filePath: fileName, 
-                    fileName: fileName 
-                })
-            });
+            const objectPath = String(fileName).split(/[/\\]/).filter(Boolean).pop();
+            const fullPath = String(fileName).indexOf('/') >= 0 ? String(fileName) : (student.id + '/' + objectPath);
+            await supabase.storage.from(CLINICAL_BUCKET).remove([fullPath]);
+        } catch (err) {}
 
-            if (student.clinical_files) {
-                student.clinical_files.splice(fIndex, 1);
-            }
-            await saveSystemData();
-            alert("🗑️ 證明文件已成功刪除！");
-        } catch (err) {
-            alert("❌ 刪除檔案失敗。");
+        if (student.clinical_files) {
+            student.clinical_files.splice(fIndex, 1);
         }
+        await saveSystemData();
+        alert("🗑️ 證明文件已成功刪除！");
     }
+    window.deleteClinicalFile = deleteClinicalFile;
 
     async function addNewLog() {
         const input = document.getElementById('newLogText');
@@ -1461,12 +1719,13 @@
 
         if (!student.logs) student.logs = [];
         const dateStr = new Date().toLocaleDateString('zh-TW');
-        const teacherName = currentUserSession.name || currentUserSession.username;
+        const teacherName = currentUserSession?.name || currentUserSession?.username || '教職員';
         student.logs.push(`[${dateStr} - ${teacherName}] ${text}`);
 
         await saveSystemData();
         input.value = '';
     }
+    window.addNewLog = addNewLog;
 
     async function deleteLogLine(index) {
         const student = systemMasterData.students[selectedStudentIndex];
@@ -1475,6 +1734,7 @@
             await saveSystemData();
         }
     }
+    window.deleteLogLine = deleteLogLine;
 
     async function addSingleStudentHand() {
         const id = document.getElementById('addSId').value.trim();
@@ -1487,7 +1747,7 @@
 
         if (!id || !name) { alert("請填寫學生編號與姓名！"); return; }
 
-        if (systemMasterData.students.some(s => s.id.toLowerCase() === id.toLowerCase())) {
+        if (systemMasterData.students.some(s => String(s.id).toLowerCase() === id.toLowerCase())) {
             alert("⚠️ 學生編號已存在！");
             return;
         }
@@ -1527,12 +1787,20 @@
         document.getElementById('addSProfile').value = '';
         alert("✅ 已成功新增學生！");
     }
+    window.addSingleStudentHand = addSingleStudentHand;
 
     async function deleteStudentHand(idx) {
         if (!confirm("⚠️ 確定要刪除此學生嗎？相應的 IEP 資料將會一併移除！")) return;
+        const student = systemMasterData.students[idx];
+        if (student && student.id) {
+            const { error } = await supabase.from('students').delete().eq('student_id', student.id);
+            if (error) { alert('❌ 刪除失敗：' + error.message); return; }
+        }
         systemMasterData.students.splice(idx, 1);
-        await saveSystemData();
+        buildStudentDropdown();
+        renderAllUI();
     }
+    window.deleteStudentHand = deleteStudentHand;
 
     async function addSingleTeacherHand() {
         const name = document.getElementById('addTName').value.trim();
@@ -1551,7 +1819,7 @@
 
         if (!name || !username || !password) { alert("請填寫姓名、帳號與密碼！"); return; }
 
-        if (systemMasterData.teachers.some(t => t.username.toLowerCase() === username.toLowerCase())) {
+        if (systemMasterData.teachers.some(t => String(t.username).toLowerCase() === username.toLowerCase())) {
             alert("⚠️ 帳號名稱已重複！");
             return;
         }
@@ -1562,11 +1830,32 @@
         if (isTeach) selectedRoles.push('teacher');
         if (isAdmin) selectedRoles.push('admin');
 
+        const email = loginEmailFromInput(username);
+        const { data: adminWrap } = await supabase.auth.getSession();
+        const adminSession = adminWrap && adminWrap.session;
+        const { data: signData, error: signErr } = await supabase.auth.signUp({
+            email: email,
+            password: password,
+            options: { data: { username: username, name: name, roles: selectedRoles } }
+        });
+        if (adminSession) {
+            await supabase.auth.setSession({
+                access_token: adminSession.access_token,
+                refresh_token: adminSession.refresh_token
+            });
+        }
+        if (signErr || !signData || !signData.user) {
+            alert('❌ 無法建立 Auth 帳號：' + ((signErr && signErr.message) || '請改到 Dashboard → Authentication 新增'));
+            return;
+        }
+
         systemMasterData.teachers.push({
+            id: signData.user.id,
             name: name,
             username: username,
-            password: password,
+            email: email,
             roles: selectedRoles,
+            role: selectedRoles.includes('admin') ? 'admin' : 'teacher',
             role_desc: roleDesc,
             homeroom_scope: homeroomScope,
             case_scope: caseScope,
@@ -1583,6 +1872,7 @@
         document.getElementById('addTTeacherScope').value = '';
         alert("✅ 已成功新增教職員！");
     }
+    window.addSingleTeacherHand = addSingleTeacherHand;
 
     async function resetUserPassword(idx) {
         const teacher = systemMasterData.teachers[idx];
@@ -1590,11 +1880,16 @@
 
         const newPwd = prompt(`🔑 請輸入教職員 [${teacher.name}] 的新密碼:`);
         if (newPwd !== null && newPwd.trim() !== '') {
-            teacher.password = newPwd.trim();
-            await saveSystemData();
-            alert("✅ 密碼已更新成功！");
+            if (teacher.id && currentUserSession && teacher.id === currentUserSession.id) {
+                const { error } = await supabase.auth.updateUser({ password: newPwd.trim() });
+                if (error) { alert('❌ 密碼更新失敗：' + error.message); return; }
+                alert("✅ 密碼已更新成功！");
+            } else {
+                alert('Serverless 模式下，其他老師的密碼請到 Supabase Dashboard → Authentication → Users 重設。');
+            }
         }
     }
+    window.resetUserPassword = resetUserPassword;
 
     async function updateTeacherScopes(idx) {
         const teacher = systemMasterData.teachers[idx];
@@ -1619,12 +1914,19 @@
         await saveSystemData();
         alert("✅ 教職員權限設定已儲存！");
     }
+    window.updateTeacherScopes = updateTeacherScopes;
 
     async function deleteTeacherHand(idx) {
         if (!confirm("⚠️ 確定要刪除此教職員帳號嗎？")) return;
+        const teacher = systemMasterData.teachers[idx];
+        if (teacher && teacher.id) {
+            const { error } = await supabase.from('teachers').delete().eq('id', teacher.id);
+            if (error) { alert('❌ 刪除失敗：' + error.message); return; }
+        }
         systemMasterData.teachers.splice(idx, 1);
-        await saveSystemData();
+        renderAllUI();
     }
+    window.deleteTeacherHand = deleteTeacherHand;
 
     async function sendAiChatMessage() {
         const input = document.getElementById('aiUserInput');
@@ -1652,45 +1954,55 @@
 
         try {
             const currentStudent = systemMasterData.students[selectedStudentIndex];
-            const res = await secureFetch('/api/sen-chat', {
-                method: 'POST',
-                body: JSON.stringify({
-                    prompt: text,
-                    studentContext: currentStudent ? {
-                        name: currentStudent.name,
-                        sen_category: currentStudent.sen_category,
-                        profile: currentStudent.profile
-                    } : null
-                })
+            const { data, error } = await supabase.functions.invoke('sen-chat', {
+                body: { prompt: text, studentId: currentStudent ? currentStudent.id : '' }
             });
-            const data = await res.json();
-            
+            const payload = data || {};
             const loadingElem = document.getElementById(loadingId);
             if (loadingElem) loadingElem.remove();
 
+            const replyText = payload.reply || payload.message || (error && error.message) || '暫時無法取得 AI 回覆。';
             chatBox.innerHTML += `
                 <div style="text-align: left;">
                     <span style="background: #e9ecef; color: #212529; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; max-width: 88%; line-height: 1.4; white-space: pre-wrap;">
-                        ${escapeHtml(data.reply || '暫時無法取得 AI 回覆。')}
+                        ${escapeHtml(replyText)}
                     </span>
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         } catch (err) {
             const loadingElem = document.getElementById(loadingId);
             if (loadingElem) loadingElem.remove();
+            if (err && err.message === 'Unauthorized') return;
 
             chatBox.innerHTML += `
                 <div style="text-align: left;">
-                    <span style="background: #f8d7da; color: #721c24; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px;">
-                        ❌ AI 服務暫時無法連線。
+                    <span style="background: #e9ecef; color: #212529; padding: 8px 12px; border-radius: 12px; display: inline-block; font-size: 13px; max-width: 88%; line-height: 1.4; white-space: pre-wrap;">
+                        ${escapeHtml((err && err.message) || '暫時無法取得 AI 回覆，請稍後再試。')}
                     </span>
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
     }
+    window.sendAiChatMessage = sendAiChatMessage;
 
-    window.onload = function() {
-        loadSystemData();
+    window.onload = async function() {
+        const loginBtn = document.getElementById('btnExecuteLoginTrigger');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                executeLogin();
+            });
+        }
+        const pwd = document.getElementById('loginPwd');
+        if (pwd) {
+            pwd.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') executeLogin();
+            });
+        }
+        initSupabase();
+        if (typeof window.loadSystemData === 'function') {
+            await window.loadSystemData();
+        }
     };
 </script>
 

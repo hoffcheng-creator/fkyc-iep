@@ -1,0 +1,4 @@
+project_id = "atbptsrpubmefyydgnde"
+
+[functions.sen-chat]
+verify_jwt = true
