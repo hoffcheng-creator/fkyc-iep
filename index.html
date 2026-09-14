@@ -791,7 +791,30 @@
 
     
     /** Normalize email for teachers.email lookup */
-    function normalizeAuthEmail(email) {
+    
+    let authFlowBusy = false;
+
+    function withTimeout(promise, ms, message) {
+        return Promise.race([
+            promise,
+            new Promise(function (_, reject) {
+                setTimeout(function () { reject(new Error(message || ('操作逾時（' + ms + 'ms）'))); }, ms);
+            })
+        ]);
+    }
+
+    function resetLoginButtons() {
+        const btn = document.getElementById('btnExecuteLoginTrigger');
+        const gbtn = document.getElementById('btnGoogleLoginTrigger');
+        const status = document.getElementById('serverStatusText');
+        if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
+        if (gbtn) gbtn.disabled = false;
+        if (status && /登入|驗證|Google/.test(status.innerText || '')) {
+            status.innerText = '⚙️ 請輸入憑證以登入系統...';
+        }
+    }
+
+function normalizeAuthEmail(email) {
         return String(email || '').trim().toLowerCase();
     }
 
@@ -886,32 +909,46 @@ async function authorizeTeacherFromAuthUser(authUser) {
             return null;
         }
 
-        // Primary: teachers.email (case-insensitive via eq on lower stored emails; also try exact)
         let teacher = null;
         let error = null;
-        const byEmail = await supabase.from('teachers').select('*').eq('email', userEmail).maybeSingle();
-        if (!byEmail.error && byEmail.data) {
-            teacher = byEmail.data;
-        } else {
-            // try original casing from auth
-            const raw = String(authUser.email || '').trim();
-            if (raw && raw !== userEmail) {
-                const byRaw = await supabase.from('teachers').select('*').eq('email', raw).maybeSingle();
-                if (!byRaw.error && byRaw.data) teacher = byRaw.data;
-                else error = byRaw.error || byEmail.error;
+        try {
+            const byEmail = await withTimeout(
+                supabase.from('teachers').select('*').eq('email', userEmail).maybeSingle(),
+                10000,
+                '查詢 teachers 逾時（email）'
+            );
+            if (!byEmail.error && byEmail.data) {
+                teacher = byEmail.data;
             } else {
-                error = byEmail.error;
+                const raw = String(authUser.email || '').trim();
+                if (raw && raw !== userEmail) {
+                    const byRaw = await withTimeout(
+                        supabase.from('teachers').select('*').eq('email', raw).maybeSingle(),
+                        10000,
+                        '查詢 teachers 逾時（email raw）'
+                    );
+                    if (!byRaw.error && byRaw.data) teacher = byRaw.data;
+                    else error = byRaw.error || byEmail.error;
+                } else {
+                    error = byEmail.error;
+                }
             }
-        }
 
-        // Fallback: match id (legacy rows keyed by auth user id)
-        if (!teacher && authUser.id) {
-            const byId = await supabase.from('teachers').select('*').eq('id', authUser.id).maybeSingle();
-            if (!byId.error && byId.data) teacher = byId.data;
+            if (!teacher && authUser.id) {
+                const byId = await withTimeout(
+                    supabase.from('teachers').select('*').eq('id', authUser.id).maybeSingle(),
+                    10000,
+                    '查詢 teachers 逾時（id）'
+                );
+                if (!byId.error && byId.data) teacher = byId.data;
+                else if (!error) error = byId.error;
+            }
+        } catch (e) {
+            error = e;
+            console.error('authorizeTeacherFromAuthUser', e);
         }
 
         if (!teacher) {
-            // If DB/RLS error, show that — not a silent bounce to login
             if (error) {
                 console.error('teachers lookup error', error);
                 alert('無法驗證教師授權（資料庫）：' + (error.message || error) + '\n登入 Email：' + userEmail);
@@ -926,7 +963,6 @@ async function authorizeTeacherFromAuthUser(authUser) {
             return null;
         }
 
-        // Ensure email on row for session
         if (!teacher.email) teacher.email = userEmail;
         return teacherToSession(teacher);
     }
@@ -997,14 +1033,23 @@ async function executeLogin() {
             const emails = loginEmailCandidates(u);
             let data = null;
             let error = null;
+            authFlowBusy = true;
             for (let i = 0; i < emails.length; i++) {
-                const attempt = await supabase.auth.signInWithPassword({ email: emails[i], password: p });
-                if (!attempt.error && attempt.data && attempt.data.user) {
-                    data = attempt.data;
-                    error = null;
-                    break;
+                try {
+                    const attempt = await withTimeout(
+                        supabase.auth.signInWithPassword({ email: emails[i], password: p }),
+                        15000,
+                        '登入逾時：無法連線 Supabase Auth'
+                    );
+                    if (!attempt.error && attempt.data && attempt.data.user) {
+                        data = attempt.data;
+                        error = null;
+                        break;
+                    }
+                    error = attempt.error;
+                } catch (timeoutErr) {
+                    error = timeoutErr;
                 }
-                error = attempt.error;
             }
             if (error || !data || !data.user) {
                 const errDiv = document.getElementById('loginError');
@@ -1025,9 +1070,13 @@ async function executeLogin() {
             }
             await finalizeAuthorizedLogin(data, sessionUser);
         } catch (err) {
-            alert("❌ 登入連線失敗，請檢查網絡或 Supabase 設定。");
-            const btn = document.getElementById('btnExecuteLoginTrigger');
-            if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
+            console.error(err);
+            alert("❌ 登入連線失敗：" + ((err && err.message) ? err.message : '請檢查網絡或 Supabase 設定。'));
+        } finally {
+            authFlowBusy = false;
+            // If we didn't reload, restore buttons
+            const main = document.getElementById('mainSystemLayout');
+            if (!main || main.classList.contains('hide-view')) resetLoginButtons();
         }
     }
     window.executeLogin = executeLogin;
@@ -1059,9 +1108,11 @@ async function executeLogin() {
             document.getElementById('loginLayout').classList.remove('hide-view');
             document.getElementById('mainSystemLayout').classList.add('hide-view');
             document.getElementById('aiFloatingContainer').classList.add('hide-view');
+            resetLoginButtons();
             return;
         }
 
+        if (status) status.innerText = '正在核對教師授權...';
         const sessionUser = await authorizeTeacherFromAuthUser(session.user);
         if (!sessionUser) {
             // unauthorized already signed out + alerted
@@ -2306,9 +2357,8 @@ async function executeLogin() {
                     return;
                 }
                 if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-                    // loadSystemData authorizes against teachers table
+                    if (authFlowBusy) return; // password/google login flow owns the handoff
                     if (typeof window.loadSystemData === 'function' && session && session.user) {
-                        // Avoid double heavy reload storm: only auto-load when main still hidden
                         const mainLayout = document.getElementById('mainSystemLayout');
                         if (mainLayout && mainLayout.classList.contains('hide-view')) {
                             await window.loadSystemData();
