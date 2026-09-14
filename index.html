@@ -188,8 +188,9 @@
         font-weight: 600;
         box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         cursor: pointer;
-        display: none;
+        display: block;
     }
+    #pwaInstallBtn.is-hidden { display: none !important; }
     #pwaInstallBtn:active { transform: scale(0.98); }
     #pwaIosTip {
         display: none;
@@ -2107,13 +2108,17 @@
   var isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
     window.navigator.standalone === true;
 
-  function showBtn() { btn.style.display = "block"; }
-  function hideBtn() { btn.style.display = "none"; }
+  function showBtn() { btn.classList.remove("is-hidden"); btn.style.display = "block"; }
+  function hideBtn() { btn.classList.add("is-hidden"); btn.style.display = "none"; }
 
+  // Already installed as app → hide
   if (isStandalone) {
     hideBtn();
     return;
   }
+
+  // Not installed → always show
+  showBtn();
 
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
@@ -2125,11 +2130,6 @@
     deferredPrompt = null;
     hideBtn();
   });
-
-  // iOS: always offer the tip button (no beforeinstallprompt)
-  if (isIos) {
-    showBtn();
-  }
 
   btn.addEventListener("click", function () {
     if (isIos) {
@@ -2143,7 +2143,6 @@
       });
       return;
     }
-    // Desktop / other: gentle fallback
     alert("如果瀏覽器支援安裝，請用地址欄附近嘅「安裝」圖示，或選單入面嘅「安裝應用程式／加至主畫面」。");
   });
 
