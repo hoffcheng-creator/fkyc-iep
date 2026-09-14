@@ -670,7 +670,7 @@
     function isAdminSession(user) {
         if (!user) return false;
         const roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
-        return roles.includes('admin') || roles.includes('senco') || user.role === 'admin' || role === 'senco';
+        return roles.includes('admin') || roles.includes('senco') || user.role === 'admin' || user.role === 'senco';
     }
 
     function loginEmailCandidates(raw) {
