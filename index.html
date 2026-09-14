@@ -1049,8 +1049,9 @@ async function executeLogin() {
             if (status) status.innerText = '登入成功，正在載入權限...';
             console.log('[Auth Log]', 'password_sign_in_ok', data.session);
             // Safety net: schedule load outside auth callback turn
+            var sessRef = data.session;
             setTimeout(function () {
-                if (typeof window.loadSystemData === 'function') window.loadSystemData();
+                if (typeof window.loadSystemData === 'function') window.loadSystemData(sessRef);
             }, 50);
         } catch (err) {
             console.error(err);
@@ -1069,7 +1070,8 @@ async function executeLogin() {
 
     let loadSystemDataInFlight = false;
     let loadSystemDataPending = false;
-    async function loadSystemData() {
+    let loadSystemDataWatchdog = null;
+    async function loadSystemData(preloadedSession) {
         if (!initSupabase()) return;
         if (loadSystemDataInFlight) {
             loadSystemDataPending = true;
@@ -1077,22 +1079,39 @@ async function executeLogin() {
             return;
         }
         loadSystemDataInFlight = true;
+        if (loadSystemDataWatchdog) clearTimeout(loadSystemDataWatchdog);
+        loadSystemDataWatchdog = setTimeout(function () {
+            if (!loadSystemDataInFlight) return;
+            console.warn('[Auth Log]', 'loadSystemData_watchdog_reset');
+            loadSystemDataInFlight = false;
+            if (loadSystemDataPending) {
+                loadSystemDataPending = false;
+                loadSystemData();
+            } else {
+                resetLoginButtons();
+                alert('載入系統逾時。請再試一次登入；若持續失敗，請把 Console 的 [Auth Log] 發給管理員。');
+            }
+        }, 20000);
         const status = document.getElementById('serverStatusText');
         try {
 
-        // Prefer recovering OAuth redirect session before deciding "logged out"
-        let session = await recoverSessionFromUrl();
-        if (!session || !session.user) {
-            // short retries only — do not block SIGNED_IN handoff for long
-            for (let i = 0; i < 3 && (!session || !session.user); i++) {
-                await new Promise(function (r) { setTimeout(r, 150); });
-                const wrap = await supabase.auth.getSession();
+        // Fast path: use session from auth event when provided
+        let session = preloadedSession && preloadedSession.user ? preloadedSession : null;
+        if (!session) {
+            try {
+                const wrap = await withTimeout(supabase.auth.getSession(), 8000, 'getSession 逾時');
                 session = wrap && wrap.data && wrap.data.session;
+            } catch (e) {
+                console.warn('[Auth Log]', 'getSession_fail', e);
             }
+        }
+        // Only run OAuth code recovery if URL has code and still no session
+        if ((!session || !session.user) && /[?&]code=/.test(window.location.search || '')) {
+            console.log('[Auth Log]', 'recover_oauth_code');
+            session = await recoverSessionFromUrl();
         }
 
         if (!session || !session.user) {
-            // Stay on login page; do not call signOut here (would fight OAuth bootstrap)
             console.log('[Auth Log]', 'loadSystemData_no_session');
             document.getElementById('loginLayout').classList.remove('hide-view');
             document.getElementById('mainSystemLayout').classList.add('hide-view');
@@ -1171,6 +1190,10 @@ async function executeLogin() {
             console.error("載入失敗:", err);
         }
         } finally {
+            if (loadSystemDataWatchdog) {
+                clearTimeout(loadSystemDataWatchdog);
+                loadSystemDataWatchdog = null;
+            }
             loadSystemDataInFlight = false;
             if (loadSystemDataPending) {
                 loadSystemDataPending = false;
@@ -2358,9 +2381,10 @@ async function executeLogin() {
                 // IMPORTANT: do not await auth APIs inside this callback (Supabase deadlock risk).
                 // Defer app load so setSession/getSession are not re-entered here.
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
+                    var sessRef = session;
                     setTimeout(function () {
                         if (typeof window.loadSystemData === 'function') {
-                            window.loadSystemData();
+                            window.loadSystemData(sessRef);
                         }
                     }, 0);
                 }
