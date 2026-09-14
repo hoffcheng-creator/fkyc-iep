@@ -967,18 +967,6 @@ async function authorizeTeacherFromAuthUser(authUser) {
         return teacherToSession(teacher);
     }
 
-    async function finalizeAuthorizedLogin(authData, sessionUser) {
-        AuthManager.setSession(authData.session && authData.session.access_token, sessionUser);
-        if (authData.session) {
-            await supabase.auth.setSession({
-                access_token: authData.session.access_token,
-                refresh_token: authData.session.refresh_token
-            });
-        }
-        sessionStorage.setItem('selected_student_idx', '0');
-        sessionStorage.setItem('current_system_view_mode', isAdminSession(sessionUser) ? 'senco' : 'teacher');
-        window.location.reload();
-    }
 
     async function executeGoogleLogin() {
         if (!initSupabase()) {
@@ -990,10 +978,9 @@ async function authorizeTeacherFromAuthUser(authUser) {
         if (btn) btn.disabled = true;
         if (status) status.innerText = '正在開啟 Google 登入...';
         try {
-            // Must match a Redirect URL allow-listed in Supabase Auth settings
-            var path = window.location.pathname || '/';
-            if (path.indexOf('index.html') === -1 && path.slice(-1) !== '/') path += '/';
-            const redirectTo = window.location.origin + path;
+            // Clean hash so token/code parsing is not confused
+            const redirectTo = window.location.href.split('#')[0];
+            console.log('[Auth Log]', 'google_oauth_start', redirectTo);
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
@@ -1033,7 +1020,6 @@ async function executeLogin() {
             const emails = loginEmailCandidates(u);
             let data = null;
             let error = null;
-            authFlowBusy = true;
             for (let i = 0; i < emails.length; i++) {
                 try {
                     const attempt = await withTimeout(
@@ -1057,26 +1043,16 @@ async function executeLogin() {
                     errDiv.style.display = 'block';
                     errDiv.innerText = '❌ 使用者名稱或密碼錯誤！請確認係 Authentication 設定嘅密碼。';
                 }
-                if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
-                if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
+                resetLoginButtons();
                 return;
             }
-
-            const sessionUser = await authorizeTeacherFromAuthUser(data.user);
-            if (!sessionUser) {
-                if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
-                if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
-                return;
-            }
-            await finalizeAuthorizedLogin(data, sessionUser);
+            if (status) status.innerText = '登入成功，正在載入權限...';
+            // Do NOT reload / authorize here — onAuthStateChange (SIGNED_IN) owns handoff
+            console.log('[Auth Log]', 'password_sign_in_ok', data.session);
         } catch (err) {
             console.error(err);
             alert("❌ 登入連線失敗：" + ((err && err.message) ? err.message : '請檢查網絡或 Supabase 設定。'));
-        } finally {
-            authFlowBusy = false;
-            // If we didn't reload, restore buttons
-            const main = document.getElementById('mainSystemLayout');
-            if (!main || main.classList.contains('hide-view')) resetLoginButtons();
+            resetLoginButtons();
         }
     }
     window.executeLogin = executeLogin;
@@ -1088,9 +1064,16 @@ async function executeLogin() {
     }
     window.executeLogout = executeLogout;
 
+    let loadSystemDataInFlight = false;
     async function loadSystemData() {
         if (!initSupabase()) return;
+        if (loadSystemDataInFlight) {
+            console.log('[Auth Log]', 'loadSystemData_skip_reentrant');
+            return;
+        }
+        loadSystemDataInFlight = true;
         const status = document.getElementById('serverStatusText');
+        try {
 
         // Prefer recovering OAuth redirect session before deciding "logged out"
         let session = await recoverSessionFromUrl();
@@ -1104,7 +1087,7 @@ async function executeLogin() {
         }
 
         if (!session || !session.user) {
-            AuthManager.clearSession();
+            // Stay on login page; do not call signOut here (would fight OAuth bootstrap)
             document.getElementById('loginLayout').classList.remove('hide-view');
             document.getElementById('mainSystemLayout').classList.add('hide-view');
             document.getElementById('aiFloatingContainer').classList.add('hide-view');
@@ -1113,14 +1096,16 @@ async function executeLogin() {
         }
 
         if (status) status.innerText = '正在核對教師授權...';
+        console.log('[Auth Log]', 'authorize_teacher_start', session.user.email);
         const sessionUser = await authorizeTeacherFromAuthUser(session.user);
         if (!sessionUser) {
-            // unauthorized already signed out + alerted
             document.getElementById('loginLayout').classList.remove('hide-view');
             document.getElementById('mainSystemLayout').classList.add('hide-view');
             document.getElementById('aiFloatingContainer').classList.add('hide-view');
+            resetLoginButtons();
             return;
         }
+        console.log('[Auth Log]', 'authorize_teacher_ok', sessionUser);
         currentUserSession = sessionUser;
         AuthManager.setSession(session.access_token, currentUserSession);
         await supabase.auth.setSession({
@@ -1181,6 +1166,9 @@ async function executeLogin() {
             renderAllUI();
         } catch (err) {
             console.error("載入失敗:", err);
+        }
+        } finally {
+            loadSystemDataInFlight = false;
         }
     }
     window.loadSystemData = loadSystemData;
@@ -2344,31 +2332,47 @@ async function executeLogin() {
             });
         }
         if (initSupabase()) {
-            // Keep session across reload / Google OAuth redirect
+            // Unified auth gate — password + Google + reload all go through here
             supabase.auth.onAuthStateChange(async function (event, session) {
+                console.log('[Auth Log]', event, session);
                 if (event === 'SIGNED_OUT') {
                     AuthManager.clearSession();
+                    currentUserSession = null;
                     const loginLayout = document.getElementById('loginLayout');
                     const mainLayout = document.getElementById('mainSystemLayout');
                     const aiBox = document.getElementById('aiFloatingContainer');
                     if (loginLayout) loginLayout.classList.remove('hide-view');
                     if (mainLayout) mainLayout.classList.add('hide-view');
                     if (aiBox) aiBox.classList.add('hide-view');
+                    resetLoginButtons();
                     return;
                 }
-                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-                    if (authFlowBusy) return; // password/google login flow owns the handoff
-                    if (typeof window.loadSystemData === 'function' && session && session.user) {
-                        const mainLayout = document.getElementById('mainSystemLayout');
-                        if (mainLayout && mainLayout.classList.contains('hide-view')) {
-                            await window.loadSystemData();
-                        }
+                // Only load app when we have a real session (SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED)
+                if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
+                    if (typeof window.loadSystemData === 'function') {
+                        await window.loadSystemData();
                     }
                 }
             });
-        }
-        if (typeof window.loadSystemData === 'function') {
-            await window.loadSystemData();
+
+            // Bootstrap: recover OAuth ?code= then let getSession / INITIAL_SESSION drive UI.
+            // Do NOT signOut automatically on page load.
+            try {
+                await recoverSessionFromUrl();
+            } catch (e) {
+                console.warn('[Auth Log] recoverSessionFromUrl', e);
+            }
+            // If INITIAL_SESSION already fired, fine; otherwise explicit load once if session exists
+            const boot = await supabase.auth.getSession();
+            console.log('[Auth Log]', 'bootstrap_getSession', boot && boot.data && boot.data.session);
+            if (boot && boot.data && boot.data.session && boot.data.session.user) {
+                if (typeof window.loadSystemData === 'function') {
+                    await window.loadSystemData();
+                }
+            } else {
+                // stay on login — no auto signOut
+                resetLoginButtons();
+            }
         }
     };
 </script>
