@@ -1048,7 +1048,9 @@ async function executeLogin() {
             }
             if (status) status.innerText = '登入成功，正在載入權限...';
             console.log('[Auth Log]', 'password_sign_in_ok', data.session);
-            // Handoff ONLY via onAuthStateChange(SIGNED_IN) — do not call loadSystemData here
+            // Immediate UI unlock; data load remains owned by onAuthStateChange
+            try { showMainAppUI(); } catch (e) { console.warn(e); }
+            resetLoginButtons();
         } catch (err) {
             console.error(err);
             alert("❌ 登入連線失敗：" + ((err && err.message) ? err.message : '請檢查網絡或 Supabase 設定。'));
@@ -2393,9 +2395,11 @@ async function executeLogin() {
                 // Defer app load so setSession/getSession are not re-entered here.
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
                     var sessRef = session;
+                    console.log('[Auth Log]', 'signed_in_schedule_load');
+                    showMainAppUI(); // immediate UI switch on auth success
                     setTimeout(function () {
                         if (typeof window.loadSystemData === 'function') {
-                            /* load via onAuthStateChange only */;
+                            window.loadSystemData(sessRef);
                         }
                     }, 0);
                 }
