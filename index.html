@@ -54,6 +54,23 @@
     .login-screen h2 { color: #2c3e50; margin-bottom: 5px; font-size: 22px; }
     .login-screen .subtitle { color: #7f8c8d; font-size: 14px; margin-bottom: 25px; font-weight: 500; }
     .login-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 15px; font-size: 15px; }
+
+    .login-divider {
+        display: flex; align-items: center; gap: 10px;
+        margin: 18px 0 14px; color: #95a5a6; font-size: 13px;
+    }
+    .login-divider::before, .login-divider::after {
+        content: ""; flex: 1; height: 1px; background: #e0e0e0;
+    }
+    .btn-google-login {
+        width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+        background: #fff; color: #3c4043; border: 1px solid #dadce0; border-radius: 4px;
+        padding: 11px 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .btn-google-login:hover { background: #f8f9fa; }
+    .btn-google-login:disabled { opacity: 0.65; cursor: not-allowed; }
+    .btn-google-login .g-logo { width: 18px; height: 18px; flex-shrink: 0; }
     .btn-login { background: #00796b; color: white; border: none; padding: 12px; width: 100%; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; }
     
     .top-bar { 
@@ -236,6 +253,16 @@
         <input type="text" id="loginUser" class="login-input" placeholder="請輸入使用者名稱 (例如: admin)" value="" oninput="hideLoginError()">
         <input type="password" id="loginPwd" class="login-input" placeholder="請輸入登入密碼" value="" oninput="hideLoginError()" onkeypress="if(event.keyCode===13) executeLogin()">
         <button type="button" class="btn-login" id="btnExecuteLoginTrigger">確認登入</button>
+        <div class="login-divider">或</div>
+        <button type="button" class="btn-google-login" id="btnGoogleLoginTrigger" onclick="executeGoogleLogin()">
+            <svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            使用學校 Google 帳號一鍵登入
+        </button>
     </div>
 </div>
 
@@ -643,7 +670,7 @@
     function isAdminSession(user) {
         if (!user) return false;
         const roles = Array.isArray(user.roles) ? user.roles : (user.role ? [user.role] : []);
-        return roles.includes('admin') || user.role === 'admin';
+        return roles.includes('admin') || roles.includes('senco') || user.role === 'admin' || role === 'senco';
     }
 
     function loginEmailCandidates(raw) {
@@ -673,17 +700,33 @@
 
     function teacherToSession(row) {
         if (!row) return null;
-        const roles = Array.isArray(row.roles) ? row.roles : [];
+        let roles = Array.isArray(row.roles) ? row.roles.slice() : [];
+        const primary = row.role || '';
+        if (primary && !roles.includes(primary)) roles.push(primary);
+        // Map common role aliases into existing permission roles
+        if (primary === 'senco' || roles.includes('senco')) {
+            if (!roles.includes('admin')) roles.push('admin');
+        }
+        if (primary === 'homeroom' && !roles.includes('homeroom')) roles.push('homeroom');
+
+        // assigned_students (array or CSV) feeds teacher_scope if scope empty
+        let assigned = row.assigned_students;
+        let assignedCsv = '';
+        if (Array.isArray(assigned)) assignedCsv = assigned.join(',');
+        else if (typeof assigned === 'string') assignedCsv = assigned;
+
+        const teacherScope = row.teacher_scope || assignedCsv || '';
         return {
             id: row.id,
-            username: row.username,
-            name: row.name,
-            role: row.role || (roles.includes('admin') ? 'admin' : 'teacher'),
+            username: row.username || (row.email ? String(row.email).split('@')[0] : ''),
+            name: row.name || row.username || row.email || '',
+            role: primary || (roles.includes('admin') ? 'admin' : 'teacher'),
             role_desc: row.role_desc || '',
             roles: roles,
             homeroom_scope: row.homeroom_scope || '',
             case_scope: row.case_scope || '',
-            teacher_scope: row.teacher_scope || '',
+            teacher_scope: teacherScope,
+            assigned_students: assignedCsv,
             email: row.email || ''
         };
     }
@@ -739,7 +782,110 @@
         return false;
     }
 
-    async function executeLogin() {
+    
+    /** Normalize email for teachers.email lookup */
+    function normalizeAuthEmail(email) {
+        return String(email || '').trim().toLowerCase();
+    }
+
+    /**
+     * After Supabase Auth succeeds: require a matching teachers row by email.
+     * Returns teacher session object or null after signOut + alert.
+     */
+    async function authorizeTeacherFromAuthUser(authUser) {
+        const userEmail = normalizeAuthEmail(authUser && authUser.email);
+        if (!userEmail) {
+            alert('此帳號未提供 Email，無法驗證授權。');
+            try { await supabase.auth.signOut(); } catch (e) {}
+            AuthManager.clearSession();
+            return null;
+        }
+
+        // Primary: teachers.email (case-insensitive via eq on lower stored emails; also try exact)
+        let teacher = null;
+        let error = null;
+        const byEmail = await supabase.from('teachers').select('*').eq('email', userEmail).maybeSingle();
+        if (!byEmail.error && byEmail.data) {
+            teacher = byEmail.data;
+        } else {
+            // try original casing from auth
+            const raw = String(authUser.email || '').trim();
+            if (raw && raw !== userEmail) {
+                const byRaw = await supabase.from('teachers').select('*').eq('email', raw).maybeSingle();
+                if (!byRaw.error && byRaw.data) teacher = byRaw.data;
+                else error = byRaw.error || byEmail.error;
+            } else {
+                error = byEmail.error;
+            }
+        }
+
+        // Fallback: match id (legacy rows keyed by auth user id)
+        if (!teacher && authUser.id) {
+            const byId = await supabase.from('teachers').select('*').eq('id', authUser.id).maybeSingle();
+            if (!byId.error && byId.data) teacher = byId.data;
+        }
+
+        if (!teacher) {
+            alert('此帳號（' + userEmail + '）未獲系統授權，請聯絡 SENCO 管理員。');
+            try { await supabase.auth.signOut(); } catch (e) {}
+            AuthManager.clearSession();
+            document.getElementById('loginLayout') && document.getElementById('loginLayout').classList.remove('hide-view');
+            document.getElementById('mainSystemLayout') && document.getElementById('mainSystemLayout').classList.add('hide-view');
+            document.getElementById('aiFloatingContainer') && document.getElementById('aiFloatingContainer').classList.add('hide-view');
+            return null;
+        }
+
+        // Ensure email on row for session
+        if (!teacher.email) teacher.email = userEmail;
+        return teacherToSession(teacher);
+    }
+
+    async function finalizeAuthorizedLogin(authData, sessionUser) {
+        AuthManager.setSession(authData.session && authData.session.access_token, sessionUser);
+        if (authData.session) {
+            await supabase.auth.setSession({
+                access_token: authData.session.access_token,
+                refresh_token: authData.session.refresh_token
+            });
+        }
+        sessionStorage.setItem('selected_student_idx', '0');
+        sessionStorage.setItem('current_system_view_mode', isAdminSession(sessionUser) ? 'senco' : 'teacher');
+        window.location.reload();
+    }
+
+    async function executeGoogleLogin() {
+        if (!initSupabase()) {
+            alert('❌ 無法載入登入元件，請重新整理頁面。');
+            return;
+        }
+        const btn = document.getElementById('btnGoogleLoginTrigger');
+        const status = document.getElementById('serverStatusText');
+        if (btn) btn.disabled = true;
+        if (status) status.innerText = '正在開啟 Google 登入...';
+        try {
+            const redirectTo = window.location.origin + (window.location.pathname || '/');
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: redirectTo,
+                    queryParams: { prompt: 'select_account' }
+                }
+            });
+            if (error) {
+                alert('❌ Google 登入失敗：' + (error.message || error));
+                if (btn) btn.disabled = false;
+                if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
+            }
+            // Browser will redirect; on return onAuthStateChange / loadSystemData handles session
+        } catch (err) {
+            alert('❌ Google 登入連線失敗，請檢查網絡或 Supabase Google Provider 設定。');
+            if (btn) btn.disabled = false;
+            if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
+        }
+    }
+    window.executeGoogleLogin = executeGoogleLogin;
+
+async function executeLogin() {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPwd').value.trim();
         if (!u || !p) { alert("請輸入帳號與密碼"); return; }
@@ -777,36 +923,13 @@
                 return;
             }
 
-            let teacherRow = null;
-            const byId = await supabase.from('teachers').select('*').eq('id', data.user.id).maybeSingle();
-            if (!byId.error && byId.data) teacherRow = byId.data;
-            if (!teacherRow) {
-                const byUser = await supabase.from('teachers').select('*').eq('username', u).maybeSingle();
-                if (!byUser.error && byUser.data) teacherRow = byUser.data;
+            const sessionUser = await authorizeTeacherFromAuthUser(data.user);
+            if (!sessionUser) {
+                if (btn) { btn.disabled = false; btn.innerText = '確認登入'; }
+                if (status) status.innerText = '⚙️ 請輸入憑證以登入系統...';
+                return;
             }
-
-            const sessionUser = teacherToSession(teacherRow) || {
-                id: data.user.id,
-                username: u,
-                name: (data.user.user_metadata && data.user.user_metadata.name) || u,
-                role: 'teacher',
-                roles: ['teacher'],
-                homeroom_scope: '',
-                case_scope: '',
-                teacher_scope: '',
-                email: data.user.email || ''
-            };
-
-            AuthManager.setSession(data.session && data.session.access_token, sessionUser);
-            if (data.session) {
-                await supabase.auth.setSession({
-                    access_token: data.session.access_token,
-                    refresh_token: data.session.refresh_token
-                });
-            }
-            sessionStorage.setItem('selected_student_idx', '0');
-            sessionStorage.setItem('current_system_view_mode', isAdminSession(sessionUser) ? 'senco' : 'teacher');
-            window.location.reload();
+            await finalizeAuthorizedLogin(data, sessionUser);
         } catch (err) {
             alert("❌ 登入連線失敗，請檢查網絡或 Supabase 設定。");
             const btn = document.getElementById('btnExecuteLoginTrigger');
@@ -835,21 +958,15 @@
             return;
         }
 
-        let teacherRow = null;
-        const byId = await supabase.from('teachers').select('*').eq('id', session.user.id).maybeSingle();
-        if (byId.error) { handleAuthError(byId.error); }
-        if (byId.data) teacherRow = byId.data;
-
-        currentUserSession = teacherToSession(teacherRow) || AuthManager.getUser();
-        if (!currentUserSession) {
-            currentUserSession = {
-                id: session.user.id,
-                username: session.user.email,
-                name: session.user.email,
-                role: 'teacher',
-                roles: ['teacher']
-            };
+        const sessionUser = await authorizeTeacherFromAuthUser(session.user);
+        if (!sessionUser) {
+            // unauthorized already signed out + alerted
+            document.getElementById('loginLayout').classList.remove('hide-view');
+            document.getElementById('mainSystemLayout').classList.add('hide-view');
+            document.getElementById('aiFloatingContainer').classList.add('hide-view');
+            return;
         }
+        currentUserSession = sessionUser;
         AuthManager.setSession(session.access_token, currentUserSession);
         await supabase.auth.setSession({
             access_token: session.access_token,
@@ -1177,14 +1294,16 @@
         const homeList = parseList(currentUserSession.homeroom_scope);
         const caseList = parseList(currentUserSession.case_scope);
         const teachList = parseList(currentUserSession.teacher_scope);
+        const assignedList = parseList(currentUserSession.assigned_students);
 
         const sId = (studentId || '').toLowerCase();
         const inList = (list) => list.includes('all') || list.includes(sId);
 
-        // Scope 命中即有權；唔再要求必須同時勾選對應角色（否則有 scope 都睇唔到學生）
-        const isHomeroomMatch = inList(homeList) || (isHomeRole && inList(homeList));
-        const isCaseMatch = inList(caseList) || (isCaseRole && inList(caseList));
-        const isSubjectMatch = inList(teachList) || (isTeachRole && inList(teachList));
+        // Scope 命中即有權；assigned_students 亦視為可存取
+        const isAssigned = inList(assignedList);
+        const isHomeroomMatch = isAssigned || inList(homeList) || (isHomeRole && inList(homeList));
+        const isCaseMatch = isAssigned || inList(caseList) || (isCaseRole && inList(caseList));
+        const isSubjectMatch = isAssigned || inList(teachList) || (isTeachRole && inList(teachList));
 
         return {
             isHomeroom: isHomeroomMatch,
@@ -2056,13 +2175,44 @@
                 executeLogin();
             });
         }
+        const googleBtn = document.getElementById('btnGoogleLoginTrigger');
+        if (googleBtn) {
+            googleBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                executeGoogleLogin();
+            });
+        }
         const pwd = document.getElementById('loginPwd');
         if (pwd) {
             pwd.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') executeLogin();
             });
         }
-        initSupabase();
+        if (initSupabase()) {
+            // Keep session across reload / Google OAuth redirect
+            supabase.auth.onAuthStateChange(async function (event, session) {
+                if (event === 'SIGNED_OUT') {
+                    AuthManager.clearSession();
+                    const loginLayout = document.getElementById('loginLayout');
+                    const mainLayout = document.getElementById('mainSystemLayout');
+                    const aiBox = document.getElementById('aiFloatingContainer');
+                    if (loginLayout) loginLayout.classList.remove('hide-view');
+                    if (mainLayout) mainLayout.classList.add('hide-view');
+                    if (aiBox) aiBox.classList.add('hide-view');
+                    return;
+                }
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+                    // loadSystemData authorizes against teachers table
+                    if (typeof window.loadSystemData === 'function' && session && session.user) {
+                        // Avoid double heavy reload storm: only auto-load when main still hidden
+                        const mainLayout = document.getElementById('mainSystemLayout');
+                        if (mainLayout && mainLayout.classList.contains('hide-view')) {
+                            await window.loadSystemData();
+                        }
+                    }
+                }
+            });
+        }
         if (typeof window.loadSystemData === 'function') {
             await window.loadSystemData();
         }
