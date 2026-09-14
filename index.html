@@ -609,7 +609,13 @@
         }
         try {
             supabase = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true,
+                    flowType: 'pkce',
+                    storage: window.localStorage
+                }
             });
             return supabase;
         } catch (err) {
@@ -792,7 +798,53 @@
      * After Supabase Auth succeeds: require a matching teachers row by email.
      * Returns teacher session object or null after signOut + alert.
      */
-    async function authorizeTeacherFromAuthUser(authUser) {
+    
+    /** After Google OAuth redirect, exchange ?code= for a session (PKCE). */
+    async function recoverSessionFromUrl() {
+        if (!initSupabase()) return null;
+        const status = document.getElementById('serverStatusText');
+        try {
+            const url = new URL(window.location.href);
+            const code = url.searchParams.get('code');
+            const err = url.searchParams.get('error_description') || url.searchParams.get('error');
+            if (err) {
+                if (status) status.innerText = '❌ Google 登入失敗：' + decodeURIComponent(err);
+                alert('Google 登入失敗：' + decodeURIComponent(err));
+                // clean url
+                url.searchParams.delete('error');
+                url.searchParams.delete('error_description');
+                url.searchParams.delete('error_code');
+                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                return null;
+            }
+            if (code) {
+                if (status) status.innerText = '正在完成 Google 登入...';
+                const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+                // Remove code from URL so refresh won't reuse it
+                url.searchParams.delete('code');
+                url.searchParams.delete('state');
+                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                if (error) {
+                    console.error('exchangeCodeForSession', error);
+                    if (status) status.innerText = '❌ 無法建立登入工作階段：' + (error.message || error);
+                    alert('無法完成 Google 登入：' + (error.message || error));
+                    return null;
+                }
+                return data && data.session ? data.session : null;
+            }
+            // Also handle implicit hash tokens if present
+            if (url.hash && url.hash.indexOf('access_token') !== -1) {
+                const { data } = await supabase.auth.getSession();
+                return data && data.session ? data.session : null;
+            }
+        } catch (e) {
+            console.error('recoverSessionFromUrl', e);
+        }
+        const { data } = await supabase.auth.getSession();
+        return data && data.session ? data.session : null;
+    }
+
+async function authorizeTeacherFromAuthUser(authUser) {
         const userEmail = normalizeAuthEmail(authUser && authUser.email);
         if (!userEmail) {
             alert('此帳號未提供 Email，無法驗證授權。');
@@ -826,7 +878,13 @@
         }
 
         if (!teacher) {
-            alert('此帳號（' + userEmail + '）未獲系統授權，請聯絡 SENCO 管理員。');
+            // If DB/RLS error, show that — not a silent bounce to login
+            if (error) {
+                console.error('teachers lookup error', error);
+                alert('無法驗證教師授權（資料庫）：' + (error.message || error) + '\n登入 Email：' + userEmail);
+            } else {
+                alert('此帳號（' + userEmail + '）未獲系統授權，請聯絡 SENCO 管理員。');
+            }
             try { await supabase.auth.signOut(); } catch (e) {}
             AuthManager.clearSession();
             document.getElementById('loginLayout') && document.getElementById('loginLayout').classList.remove('hide-view');
@@ -863,12 +921,15 @@
         if (btn) btn.disabled = true;
         if (status) status.innerText = '正在開啟 Google 登入...';
         try {
-            const redirectTo = window.location.origin + (window.location.pathname || '/');
+            // Must match a Redirect URL allow-listed in Supabase Auth settings
+            var path = window.location.pathname || '/';
+            if (path.indexOf('index.html') === -1 && path.slice(-1) !== '/') path += '/';
+            const redirectTo = window.location.origin + path;
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: redirectTo,
-                    queryParams: { prompt: 'select_account' }
+                    queryParams: { prompt: 'select_account', access_type: 'online' }
                 }
             });
             if (error) {
@@ -947,8 +1008,18 @@ async function executeLogin() {
 
     async function loadSystemData() {
         if (!initSupabase()) return;
-        const { data: sessWrap } = await supabase.auth.getSession();
-        const session = sessWrap && sessWrap.session;
+        const status = document.getElementById('serverStatusText');
+
+        // Prefer recovering OAuth redirect session before deciding "logged out"
+        let session = await recoverSessionFromUrl();
+        if (!session || !session.user) {
+            // brief retries (auth storage / detectSessionInUrl race)
+            for (let i = 0; i < 5 && (!session || !session.user); i++) {
+                await new Promise(function (r) { setTimeout(r, 200); });
+                const wrap = await supabase.auth.getSession();
+                session = wrap && wrap.data && wrap.data.session;
+            }
+        }
 
         if (!session || !session.user) {
             AuthManager.clearSession();
