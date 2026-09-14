@@ -1,8 +1,6 @@
 /* 救恩 IEP 系統 — Service Worker */
-const CACHE_NAME = "salvation-iep-v1";
+const CACHE_NAME = "salvation-iep-v4";
 const PRECACHE_URLS = [
-  "./",
-  "./index.html",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
