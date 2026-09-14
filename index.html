@@ -1048,11 +1048,7 @@ async function executeLogin() {
             }
             if (status) status.innerText = '登入成功，正在載入權限...';
             console.log('[Auth Log]', 'password_sign_in_ok', data.session);
-            // Safety net: schedule load outside auth callback turn
-            var sessRef = data.session;
-            setTimeout(function () {
-                if (typeof window.loadSystemData === 'function') window.loadSystemData(sessRef);
-            }, 50);
+            // Handoff ONLY via onAuthStateChange(SIGNED_IN) — do not call loadSystemData here
         } catch (err) {
             console.error(err);
             alert("❌ 登入連線失敗：" + ((err && err.message) ? err.message : '請檢查網絡或 Supabase 設定。'));
@@ -1068,34 +1064,71 @@ async function executeLogin() {
     }
     window.executeLogout = executeLogout;
 
-    let loadSystemDataInFlight = false;
-    let loadSystemDataPending = false;
-    let loadSystemDataWatchdog = null;
+    async function showMainAppUI() {
+        var loginLayout = document.getElementById('loginLayout');
+        var mainLayout = document.getElementById('mainSystemLayout');
+        var aiBox = document.getElementById('aiFloatingContainer');
+        if (loginLayout) {
+            loginLayout.classList.add('hide-view');
+            loginLayout.style.display = 'none';
+        }
+        if (mainLayout) {
+            mainLayout.classList.remove('hide-view');
+            mainLayout.style.display = '';
+        }
+        if (aiBox) {
+            aiBox.classList.remove('hide-view');
+            aiBox.style.display = '';
+        }
+        console.log('[Auth Log]', 'ui_show_main');
+    }
+
+    function showLoginUI() {
+        var loginLayout = document.getElementById('loginLayout');
+        var mainLayout = document.getElementById('mainSystemLayout');
+        var aiBox = document.getElementById('aiFloatingContainer');
+        if (loginLayout) {
+            loginLayout.classList.remove('hide-view');
+            loginLayout.style.display = '';
+        }
+        if (mainLayout) {
+            mainLayout.classList.add('hide-view');
+        }
+        if (aiBox) {
+            aiBox.classList.add('hide-view');
+        }
+        resetLoginButtons();
+        console.log('[Auth Log]', 'ui_show_login');
+    }
+
+    function isMainAppVisible() {
+        var mainLayout = document.getElementById('mainSystemLayout');
+        if (!mainLayout) return false;
+        if (mainLayout.classList.contains('hide-view')) return false;
+        return true;
+    }
+
     async function loadSystemData(preloadedSession) {
         if (!initSupabase()) return;
-        if (loadSystemDataInFlight) {
-            loadSystemDataPending = true;
-            console.log('[Auth Log]', 'loadSystemData_queued');
+        // Simple guard: if main UI already showing, skip (no inFlight/queue locks)
+        if (isMainAppVisible() && currentUserSession) {
+            console.log('[Auth Log]', 'loadSystemData_skip_main_already_visible');
             return;
         }
-        loadSystemDataInFlight = true;
-        if (loadSystemDataWatchdog) clearTimeout(loadSystemDataWatchdog);
-        loadSystemDataWatchdog = setTimeout(function () {
-            if (!loadSystemDataInFlight) return;
-            console.warn('[Auth Log]', 'loadSystemData_watchdog_reset');
-            loadSystemDataInFlight = false;
-            if (loadSystemDataPending) {
-                loadSystemDataPending = false;
-                loadSystemData();
-            } else {
-                resetLoginButtons();
-                alert('載入系統逾時。請再試一次登入；若持續失敗，請把 Console 的 [Auth Log] 發給管理員。');
-            }
-        }, 20000);
         const status = document.getElementById('serverStatusText');
-        try {
+        var watchdog = setTimeout(function () {
+            console.warn('[Auth Log]', 'loadSystemData_watchdog_8s');
+            // Unlock UX: show main shell if we at least have a session user
+            try {
+                if (currentUserSession || (preloadedSession && preloadedSession.user)) {
+                    showMainAppUI();
+                }
+            } catch (e) {}
+            if (status) status.innerText = '⚠️ 資料載入逾時，已顯示基礎主介面。請刷新或檢查網絡。';
+        }, 8000);
 
-        // Fast path: use session from auth event when provided
+        try {
+        // Fast path: use session from auth event
         let session = preloadedSession && preloadedSession.user ? preloadedSession : null;
         if (!session) {
             try {
@@ -1105,7 +1138,6 @@ async function executeLogin() {
                 console.warn('[Auth Log]', 'getSession_fail', e);
             }
         }
-        // Only run OAuth code recovery if URL has code and still no session
         if ((!session || !session.user) && /[?&]code=/.test(window.location.search || '')) {
             console.log('[Auth Log]', 'recover_oauth_code');
             session = await recoverSessionFromUrl();
@@ -1113,31 +1145,25 @@ async function executeLogin() {
 
         if (!session || !session.user) {
             console.log('[Auth Log]', 'loadSystemData_no_session');
-            document.getElementById('loginLayout').classList.remove('hide-view');
-            document.getElementById('mainSystemLayout').classList.add('hide-view');
-            document.getElementById('aiFloatingContainer').classList.add('hide-view');
-            resetLoginButtons();
+            showLoginUI();
             return;
         }
+
+        // Show main UI ASAP after auth session exists (before slow data fetches finish)
+        showMainAppUI();
 
         if (status) status.innerText = '正在核對教師授權...';
         console.log('[Auth Log]', 'authorize_teacher_start', session.user.email);
         const sessionUser = await authorizeTeacherFromAuthUser(session.user);
         if (!sessionUser) {
-            document.getElementById('loginLayout').classList.remove('hide-view');
-            document.getElementById('mainSystemLayout').classList.add('hide-view');
-            document.getElementById('aiFloatingContainer').classList.add('hide-view');
-            resetLoginButtons();
+            showLoginUI();
             return;
         }
         console.log('[Auth Log]', 'authorize_teacher_ok', sessionUser);
         currentUserSession = sessionUser;
         AuthManager.setSession(session.access_token, currentUserSession);
         // Do NOT call supabase.auth.setSession here — already signed in; re-entry can deadlock.
-
-        document.getElementById('loginLayout').classList.add('hide-view');
-        document.getElementById('mainSystemLayout').classList.remove('hide-view');
-        document.getElementById('aiFloatingContainer').classList.remove('hide-view');
+        showMainAppUI();
 
         try {
             const stRes = await supabase.from('students').select('*').order('student_id');
@@ -1190,16 +1216,7 @@ async function executeLogin() {
             console.error("載入失敗:", err);
         }
         } finally {
-            if (loadSystemDataWatchdog) {
-                clearTimeout(loadSystemDataWatchdog);
-                loadSystemDataWatchdog = null;
-            }
-            loadSystemDataInFlight = false;
-            if (loadSystemDataPending) {
-                loadSystemDataPending = false;
-                console.log('[Auth Log]', 'loadSystemData_run_queued');
-                setTimeout(function () { loadSystemData(); }, 0);
-            }
+            clearTimeout(watchdog);
         }
     }
     window.loadSystemData = loadSystemData;
@@ -2369,13 +2386,7 @@ async function executeLogin() {
                 if (event === 'SIGNED_OUT') {
                     AuthManager.clearSession();
                     currentUserSession = null;
-                    const loginLayout = document.getElementById('loginLayout');
-                    const mainLayout = document.getElementById('mainSystemLayout');
-                    const aiBox = document.getElementById('aiFloatingContainer');
-                    if (loginLayout) loginLayout.classList.remove('hide-view');
-                    if (mainLayout) mainLayout.classList.add('hide-view');
-                    if (aiBox) aiBox.classList.add('hide-view');
-                    resetLoginButtons();
+                    showLoginUI();
                     return;
                 }
                 // IMPORTANT: do not await auth APIs inside this callback (Supabase deadlock risk).
@@ -2384,29 +2395,27 @@ async function executeLogin() {
                     var sessRef = session;
                     setTimeout(function () {
                         if (typeof window.loadSystemData === 'function') {
-                            window.loadSystemData(sessRef);
+                            /* load via onAuthStateChange only */;
                         }
                     }, 0);
                 }
             });
 
-            // Bootstrap: recover OAuth ?code= then let getSession / INITIAL_SESSION drive UI.
-            // Do NOT signOut automatically on page load.
-            try {
-                await recoverSessionFromUrl();
-            } catch (e) {
-                console.warn('[Auth Log] recoverSessionFromUrl', e);
-            }
-            // If INITIAL_SESSION already fired, fine; otherwise explicit load once if session exists
+            // Bootstrap with getSession only (no auto signOut). OAuth code handled inside loadSystemData if needed.
             const boot = await supabase.auth.getSession();
             console.log('[Auth Log]', 'bootstrap_getSession', boot && boot.data && boot.data.session);
             if (boot && boot.data && boot.data.session && boot.data.session.user) {
-                if (typeof window.loadSystemData === 'function') {
-                    await window.loadSystemData();
-                }
+                setTimeout(function () {
+                    if (typeof window.loadSystemData === 'function') {
+                        window.loadSystemData(boot.data.session);
+                    }
+                }, 0);
+            } else if (/[?&]code=/.test(window.location.search || '')) {
+                setTimeout(function () {
+                    if (typeof window.loadSystemData === 'function') window.loadSystemData();
+                }, 0);
             } else {
-                // stay on login — no auto signOut
-                resetLoginButtons();
+                showLoginUI();
             }
         }
     };
