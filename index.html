@@ -2,7 +2,16 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a5f7a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="救恩 IEP">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="救恩 IEP">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <title>粉嶺救恩書院 Fanling Kau Yan College - 特教統籌交叉權限系統 (SECURE)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2.57.4/dist/umd/supabase.js'"></script>
     <!-- 引入 SheetJS 用於 Excel 匯入與匯出 -->
@@ -2008,6 +2017,17 @@
             await window.loadSystemData();
         }
     };
+</script>
+
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function (err) {
+        console.warn("Service Worker registration failed:", err);
+      });
+    });
+  }
 </script>
 
 </body>
