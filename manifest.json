@@ -1,7 +1,7 @@
 {
-  "name": "救恩 IEP 系統",
-  "short_name": "救恩 IEP",
-  "description": "救恩 IEP 系統 — 可安裝至主畫面使用",
+  "name": "FKYC IEP 系統",
+  "short_name": "FKYC IEP",
+  "description": "FKYC IEP 系統 — 可安裝至主畫面使用",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
