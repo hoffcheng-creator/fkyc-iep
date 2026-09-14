@@ -1047,8 +1047,11 @@ async function executeLogin() {
                 return;
             }
             if (status) status.innerText = '登入成功，正在載入權限...';
-            // Do NOT reload / authorize here — onAuthStateChange (SIGNED_IN) owns handoff
             console.log('[Auth Log]', 'password_sign_in_ok', data.session);
+            // Safety net: schedule load outside auth callback turn
+            setTimeout(function () {
+                if (typeof window.loadSystemData === 'function') window.loadSystemData();
+            }, 50);
         } catch (err) {
             console.error(err);
             alert("❌ 登入連線失敗：" + ((err && err.message) ? err.message : '請檢查網絡或 Supabase 設定。'));
@@ -1111,10 +1114,7 @@ async function executeLogin() {
         console.log('[Auth Log]', 'authorize_teacher_ok', sessionUser);
         currentUserSession = sessionUser;
         AuthManager.setSession(session.access_token, currentUserSession);
-        await supabase.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token
-        });
+        // Do NOT call supabase.auth.setSession here — already signed in; re-entry can deadlock.
 
         document.getElementById('loginLayout').classList.add('hide-view');
         document.getElementById('mainSystemLayout').classList.remove('hide-view');
@@ -2341,7 +2341,7 @@ async function executeLogin() {
         }
         if (initSupabase()) {
             // Unified auth gate — password + Google + reload all go through here
-            supabase.auth.onAuthStateChange(async function (event, session) {
+            supabase.auth.onAuthStateChange(function (event, session) {
                 console.log('[Auth Log]', event, session);
                 if (event === 'SIGNED_OUT') {
                     AuthManager.clearSession();
@@ -2355,11 +2355,14 @@ async function executeLogin() {
                     resetLoginButtons();
                     return;
                 }
-                // Only load app when we have a real session (SIGNED_IN / INITIAL_SESSION / TOKEN_REFRESHED)
+                // IMPORTANT: do not await auth APIs inside this callback (Supabase deadlock risk).
+                // Defer app load so setSession/getSession are not re-entered here.
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session && session.user) {
-                    if (typeof window.loadSystemData === 'function') {
-                        await window.loadSystemData();
-                    }
+                    setTimeout(function () {
+                        if (typeof window.loadSystemData === 'function') {
+                            window.loadSystemData();
+                        }
+                    }, 0);
                 }
             });
 
