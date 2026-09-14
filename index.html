@@ -612,7 +612,8 @@
                 auth: {
                     persistSession: true,
                     autoRefreshToken: true,
-                    detectSessionInUrl: true,
+                    // Manual recoverSessionFromUrl handles ?code= to avoid double exchange hangs
+                    detectSessionInUrl: false,
                     flowType: 'pkce',
                     storage: window.localStorage
                 }
@@ -799,46 +800,78 @@
      * Returns teacher session object or null after signOut + alert.
      */
     
-    /** After Google OAuth redirect, exchange ?code= for a session (PKCE). */
+    
+    /** After Google OAuth redirect, establish session without double-consuming ?code=. */
     async function recoverSessionFromUrl() {
         if (!initSupabase()) return null;
         const status = document.getElementById('serverStatusText');
+
+        function cleanAuthParams() {
+            try {
+                const url = new URL(window.location.href);
+                ['code', 'state', 'error', 'error_description', 'error_code'].forEach(function (k) {
+                    url.searchParams.delete(k);
+                });
+                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+            } catch (e) {}
+        }
+
         try {
             const url = new URL(window.location.href);
-            const code = url.searchParams.get('code');
             const err = url.searchParams.get('error_description') || url.searchParams.get('error');
             if (err) {
                 if (status) status.innerText = '❌ Google 登入失敗：' + decodeURIComponent(err);
                 alert('Google 登入失敗：' + decodeURIComponent(err));
-                // clean url
-                url.searchParams.delete('error');
-                url.searchParams.delete('error_description');
-                url.searchParams.delete('error_code');
-                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                cleanAuthParams();
                 return null;
             }
+
+            const code = url.searchParams.get('code');
+            // 1) Let client finish detectSessionInUrl / existing storage first
+            let sessionWrap = await supabase.auth.getSession();
+            let session = sessionWrap && sessionWrap.data && sessionWrap.data.session;
+            if (session && session.user) {
+                if (code) cleanAuthParams();
+                return session;
+            }
+
+            // 2) If OAuth code present, exchange once (with timeout)
             if (code) {
                 if (status) status.innerText = '正在完成 Google 登入...';
-                const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-                // Remove code from URL so refresh won't reuse it
-                url.searchParams.delete('code');
-                url.searchParams.delete('state');
-                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+                const timeoutPromise = new Promise(function (_, reject) {
+                    setTimeout(function () { reject(new Error('Google 登入逾時（15秒）。請用同一個瀏覽器完成登入，或清除網站資料後重試。')); }, 15000);
+                });
+                let data = null;
+                let error = null;
+                try {
+                    const result = await Promise.race([exchangePromise, timeoutPromise]);
+                    data = result && result.data;
+                    error = result && result.error;
+                } catch (raceErr) {
+                    error = raceErr;
+                }
+                cleanAuthParams();
                 if (error) {
                     console.error('exchangeCodeForSession', error);
-                    if (status) status.innerText = '❌ 無法建立登入工作階段：' + (error.message || error);
-                    alert('無法完成 Google 登入：' + (error.message || error));
+                    const msg = (error && error.message) ? error.message : String(error);
+                    if (status) status.innerText = '❌ 無法完成 Google 登入：' + msg;
+                    alert('無法完成 Google 登入：' + msg + '\n\n請確認：\n1) 用同一個瀏覽器開始同完成登入\n2) Supabase Redirect URLs 已加入本站網址\n3) 無痕／擋 cookie 會令 PKCE 失敗');
                     return null;
                 }
-                return data && data.session ? data.session : null;
+                if (data && data.session) return data.session;
             }
-            // Also handle implicit hash tokens if present
-            if (url.hash && url.hash.indexOf('access_token') !== -1) {
-                const { data } = await supabase.auth.getSession();
-                return data && data.session ? data.session : null;
+
+            // 3) short retries
+            for (let i = 0; i < 8; i++) {
+                await new Promise(function (r) { setTimeout(r, 250); });
+                sessionWrap = await supabase.auth.getSession();
+                session = sessionWrap && sessionWrap.data && sessionWrap.data.session;
+                if (session && session.user) return session;
             }
         } catch (e) {
             console.error('recoverSessionFromUrl', e);
+            if (status) status.innerText = '❌ Google 登入處理失敗：' + (e && e.message ? e.message : e);
         }
         const { data } = await supabase.auth.getSession();
         return data && data.session ? data.session : null;
