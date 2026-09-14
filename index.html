@@ -188,8 +188,9 @@
         font-weight: 600;
         box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         cursor: pointer;
-        display: block;
+        display: none;
     }
+    #pwaInstallBtn.is-visible { display: block !important; }
     #pwaInstallBtn.is-hidden { display: none !important; }
     #pwaInstallBtn:active { transform: scale(0.98); }
     #pwaIosTip {
@@ -2100,6 +2101,7 @@
   var btn = document.getElementById("pwaInstallBtn");
   var tip = document.getElementById("pwaIosTip");
   var tipClose = document.getElementById("pwaIosTipClose");
+  var loginLayout = document.getElementById("loginLayout");
   if (!btn) return;
 
   var deferredPrompt = null;
@@ -2108,27 +2110,37 @@
   var isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
     window.navigator.standalone === true;
 
-  function showBtn() { btn.classList.remove("is-hidden"); btn.style.display = "block"; }
-  function hideBtn() { btn.classList.add("is-hidden"); btn.style.display = "none"; }
-
-  // Already installed as app → hide
-  if (isStandalone) {
-    hideBtn();
-    return;
+  function isLoginVisible() {
+    if (!loginLayout) return false;
+    if (loginLayout.classList.contains("hide-view")) return false;
+    var style = window.getComputedStyle(loginLayout);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    return true;
   }
 
-  // Not installed → always show
-  showBtn();
+  function syncInstallBtn() {
+    // Only on login screen, and not when already installed as app
+    if (isStandalone || !isLoginVisible()) {
+      btn.classList.remove("is-visible");
+      btn.classList.add("is-hidden");
+      btn.style.display = "none";
+      return;
+    }
+    btn.classList.remove("is-hidden");
+    btn.classList.add("is-visible");
+    btn.style.display = "block";
+  }
 
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
     deferredPrompt = e;
-    showBtn();
+    syncInstallBtn();
   });
 
   window.addEventListener("appinstalled", function () {
     deferredPrompt = null;
-    hideBtn();
+    isStandalone = true;
+    syncInstallBtn();
   });
 
   btn.addEventListener("click", function () {
@@ -2152,6 +2164,20 @@
       if (e.target === tip) tip.style.display = "none";
     });
   }
+
+  // React to login show/hide (class hide-view)
+  if (loginLayout && window.MutationObserver) {
+    new MutationObserver(syncInstallBtn).observe(loginLayout, {
+      attributes: true,
+      attributeFilter: ["class", "style"]
+    });
+  }
+
+  // Initial + after load (in case auth restores session and hides login)
+  syncInstallBtn();
+  window.addEventListener("load", syncInstallBtn);
+  setTimeout(syncInstallBtn, 500);
+  setTimeout(syncInstallBtn, 1500);
 })();
 </script>
 
