@@ -2,7 +2,16 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a5f7a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="救恩 IEP">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="救恩 IEP">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
     <title>粉嶺救恩書院 Fanling Kau Yan College - 特教統籌交叉權限系統 (SECURE)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2.57.4/dist/umd/supabase.js'"></script>
     <!-- 引入 SheetJS 用於 Excel 匯入與匯出 -->
@@ -163,6 +172,55 @@
 
     #ai-toggle-checkbox:checked ~ #aiFloatingChatWindow { display: flex !important; }
     #aiFloatingBtn:hover { background-color: #004085 !important; }
+
+    /* PWA install button */
+    #pwaInstallBtn {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 9999;
+        background: #1a5f7a;
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font-size: 15px;
+        font-weight: 600;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        cursor: pointer;
+        display: block;
+    }
+    #pwaInstallBtn.is-hidden { display: none !important; }
+    #pwaInstallBtn:active { transform: scale(0.98); }
+    #pwaIosTip {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: rgba(0,0,0,0.45);
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    #pwaIosTip .pwa-tip-card {
+        background: #fff;
+        border-radius: 12px;
+        max-width: 360px;
+        width: 100%;
+        padding: 20px;
+        text-align: left;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        font-size: 15px;
+        line-height: 1.5;
+        color: #333;
+    }
+    #pwaIosTip .pwa-tip-card h3 { margin: 0 0 10px; color: #1a5f7a; font-size: 18px; }
+    #pwaIosTip .pwa-tip-card ol { margin: 0 0 16px; padding-left: 22px; }
+    #pwaIosTip .pwa-tip-close {
+        background: #1a5f7a; color: #fff; border: none; border-radius: 8px;
+        padding: 10px 14px; width: 100%; font-weight: 600; cursor: pointer;
+    }
 </style>
 </head>
 <body>
@@ -2008,6 +2066,93 @@
             await window.loadSystemData();
         }
     };
+</script>
+
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function (err) {
+        console.warn("Service Worker registration failed:", err);
+      });
+    });
+  }
+</script>
+
+
+<button type="button" id="pwaInstallBtn" aria-label="安裝至主畫面">安裝至主畫面</button>
+<div id="pwaIosTip" role="dialog" aria-modal="true" aria-labelledby="pwaIosTipTitle">
+  <div class="pwa-tip-card">
+    <h3 id="pwaIosTipTitle">加入主畫面（iPhone / iPad）</h3>
+    <ol>
+      <li>撳底欄中間嘅「分享」按鈕</li>
+      <li>向下搵「加入主畫面」／「Add to Home Screen」</li>
+      <li>確認加入</li>
+    </ol>
+    <p style="margin:0 0 14px;color:#666;font-size:13px;">Safari 先至支援；用 Chrome for iOS 可能冇呢個選項。</p>
+    <button type="button" class="pwa-tip-close" id="pwaIosTipClose">知道咗</button>
+  </div>
+</div>
+
+
+<script>
+(function () {
+  var btn = document.getElementById("pwaInstallBtn");
+  var tip = document.getElementById("pwaIosTip");
+  var tipClose = document.getElementById("pwaIosTipClose");
+  if (!btn) return;
+
+  var deferredPrompt = null;
+  var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  function showBtn() { btn.classList.remove("is-hidden"); btn.style.display = "block"; }
+  function hideBtn() { btn.classList.add("is-hidden"); btn.style.display = "none"; }
+
+  // Already installed as app → hide
+  if (isStandalone) {
+    hideBtn();
+    return;
+  }
+
+  // Not installed → always show
+  showBtn();
+
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    showBtn();
+  });
+
+  window.addEventListener("appinstalled", function () {
+    deferredPrompt = null;
+    hideBtn();
+  });
+
+  btn.addEventListener("click", function () {
+    if (isIos) {
+      if (tip) tip.style.display = "flex";
+      return;
+    }
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(function () {
+        deferredPrompt = null;
+      });
+      return;
+    }
+    alert("如果瀏覽器支援安裝，請用地址欄附近嘅「安裝」圖示，或選單入面嘅「安裝應用程式／加至主畫面」。");
+  });
+
+  if (tipClose && tip) {
+    tipClose.addEventListener("click", function () { tip.style.display = "none"; });
+    tip.addEventListener("click", function (e) {
+      if (e.target === tip) tip.style.display = "none";
+    });
+  }
+})();
 </script>
 
 </body>
