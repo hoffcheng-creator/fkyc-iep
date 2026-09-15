@@ -5,3 +5,9 @@ node_modules/
 uploads/temp/
 *.log
 .DS_Store
+
+# 敏感／本機資料（勿再提交）
+data.json
+uploads/
+.env/
+*.pem
