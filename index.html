@@ -1385,11 +1385,13 @@ async function executeLogin() {
 
                 let addedCount = 0;
                 let updatedCount = 0;
+                let skippedNoPassword = 0;
 
                 json.forEach(row => {
                     const username = String(row['帳號'] || row['使用者名稱'] || row['username'] || '').trim();
                     const name = String(row['教職員姓名'] || row['姓名'] || row['name'] || '').trim();
-                    const password = String(row['密碼'] || row['password'] || '123456').trim();
+                    const hasPasswordCol = !!(row['密碼'] || row['password']);
+                    const password = String(row['密碼'] || row['password'] || '').trim();
 
                     if (!username || !name) return;
 
@@ -1403,10 +1405,11 @@ async function executeLogin() {
 
                     if (existingIndex !== -1) {
                         const oldTeacher = systemMasterData.teachers[existingIndex];
+                        // 更新：有填密碼先改；冇填就保留舊密碼（唔再用預設密碼）
                         systemMasterData.teachers[existingIndex] = {
                             ...oldTeacher,
                             name: name,
-                            password: row['密碼'] || row['password'] ? password : oldTeacher.password,
+                            password: hasPasswordCol && password ? password : oldTeacher.password,
                             roles: finalRoles,
                             role_desc: String(row['職責說明'] || row['role_desc'] || oldTeacher.role_desc || '').trim(),
                             homeroom_scope: String(row['班主任學生編號'] || row['homeroom_scope'] || oldTeacher.homeroom_scope || '').trim(),
@@ -1415,6 +1418,11 @@ async function executeLogin() {
                         };
                         updatedCount++;
                     } else {
+                        // 新增：必須有密碼，否則略過（唔再預設 123456）
+                        if (!password) {
+                            skippedNoPassword++;
+                            return;
+                        }
                         systemMasterData.teachers.push({
                             name: name,
                             username: username,
@@ -1430,7 +1438,7 @@ async function executeLogin() {
                 });
 
                 await saveSystemData();
-                alert(`✅ 處理完成！\n• 新增教職員：${addedCount} 筆\n• 更新教職員：${updatedCount} 筆`);
+                alert('✅ 處理完成！\n• 新增教職員：' + addedCount + ' 筆\n• 更新教職員：' + updatedCount + ' 筆\n• 因缺密碼略過新增：' + skippedNoPassword + ' 筆');
             } catch (err) {
                 console.error(err);
                 alert("❌ 解析 Excel 檔案時發生錯誤，請確認檔案格式是否正確。");
