@@ -1,0 +1,6 @@
+{
+  "users": [],
+  "students": [],
+  "systemLogs": [],
+  "_note": "此為空白範例。真實資料只應存放於 Supabase／本機，勿提交含密碼或學生資料的 data.json。"
+}
