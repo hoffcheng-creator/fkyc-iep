@@ -42,6 +42,10 @@ Deno.serve(async (req) => {
     if (!supabaseUrl || !serviceKey) {
       return json({ success: false, message: 'Function 缺少 SUPABASE_URL / SERVICE_ROLE' }, 500);
     }
+    // Never fall back to service_role for student reads — that bypasses RLS.
+    if (!anonKey) {
+      return json({ success: false, message: 'Function 缺少 SUPABASE_ANON_KEY（學生讀取必須受 RLS 約束）' }, 500);
+    }
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -58,7 +62,7 @@ Deno.serve(async (req) => {
 
     let trustedContext: Record<string, unknown> = {};
     if (studentId) {
-      const userClient = createClient(supabaseUrl, anonKey || serviceKey, {
+      const userClient = createClient(supabaseUrl, anonKey, {
         auth: { persistSession: false, autoRefreshToken: false },
         global: { headers: { Authorization: 'Bearer ' + token } },
       });

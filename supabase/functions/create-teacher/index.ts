@@ -13,6 +13,12 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function isPrivilegedAdmin(role: unknown, roles: unknown): boolean {
+  const list = Array.isArray(roles) ? roles.map(String) : [];
+  const primary = String(role || '');
+  return primary === 'admin' || primary === 'senco' || list.includes('admin') || list.includes('senco');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -28,9 +34,9 @@ Deno.serve(async (req) => {
     if (userErr || !userData.user) return json({ success: false, message: 'Token 無效' }, 401);
 
     const { data: me } = await admin.from('teachers').select('role, roles').eq('id', userData.user.id).maybeSingle();
-    const roles = Array.isArray(me?.roles) ? me.roles : [];
-    const isAdmin = me?.role === 'admin' || roles.includes('admin');
-    if (!isAdmin) return json({ success: false, message: '只有管理員可以新增教職員' }, 403);
+    if (!isPrivilegedAdmin(me?.role, me?.roles)) {
+      return json({ success: false, message: '只有管理員可以新增教職員' }, 403);
+    }
 
     const body = await req.json();
     const name = String(body.name || '').trim();
@@ -50,7 +56,9 @@ Deno.serve(async (req) => {
     }
 
     const email = username.includes('@') ? username : `${username}@fkyc.edu.hk`;
-    const role = selectedRoles.includes('admin') ? 'admin' : 'teacher';
+    const role = (selectedRoles.includes('admin') || selectedRoles.includes('senco'))
+      ? (selectedRoles.includes('admin') ? 'admin' : 'senco')
+      : 'teacher';
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
