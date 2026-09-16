@@ -1062,11 +1062,81 @@ async function executeLogin() {
     window.executeLogin = executeLogin;
 
     async function executeLogout() {
+        try { idleStopWatch(); } catch (e) {}
         try { await supabase.auth.signOut(); } catch (e) {}
         AuthManager.clearSession();
+        currentUserSession = null;
         window.location.reload();
     }
+
     window.executeLogout = executeLogout;
+
+    // Idle auto-logout: 30 minutes without user activity while logged in
+    var IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+    var IDLE_CHECK_MS = 60 * 1000;
+    var idleLastActivityAt = 0;
+    var idleCheckTimer = null;
+    var idleListenersBound = false;
+    var idleLoggingOut = false;
+
+    function idleMarkActivity() {
+        idleLastActivityAt = Date.now();
+    }
+
+    function idleStopWatch() {
+        if (idleCheckTimer) {
+            clearInterval(idleCheckTimer);
+            idleCheckTimer = null;
+        }
+    }
+
+    function idleCheckTimeout() {
+        if (idleLoggingOut) return;
+        if (!currentUserSession) return;
+        if (typeof isMainAppVisible === 'function' && !isMainAppVisible()) return;
+        if (!idleLastActivityAt) return;
+        var idleFor = Date.now() - idleLastActivityAt;
+        if (idleFor < IDLE_TIMEOUT_MS) return;
+        idleLoggingOut = true;
+        idleStopWatch();
+        console.log('[Auth Log]', 'idle_auto_logout', idleFor);
+        try {
+            alert('閒置超過 30 分鐘，已自動登出。');
+        } catch (e) {}
+        try {
+            executeLogout();
+        } catch (e) {
+            idleLoggingOut = false;
+        }
+    }
+
+    function idleOnActivity() {
+        if (!currentUserSession) return;
+        idleMarkActivity();
+    }
+
+    function idleOnVisibility() {
+        if (document.visibilityState === 'visible') {
+            idleCheckTimeout();
+        }
+    }
+
+    function idleStartWatch() {
+        idleMarkActivity();
+        idleLoggingOut = false;
+        if (!idleListenersBound) {
+            idleListenersBound = true;
+            var opts = { capture: true, passive: true };
+            ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click', 'wheel'].forEach(function (evt) {
+                document.addEventListener(evt, idleOnActivity, opts);
+            });
+            document.addEventListener('visibilitychange', idleOnVisibility);
+        }
+        idleStopWatch();
+        idleCheckTimer = setInterval(idleCheckTimeout, IDLE_CHECK_MS);
+        console.log('[Auth Log]', 'idle_watch_start', IDLE_TIMEOUT_MS);
+    }
+
 
     async function showMainAppUI() {
         var loginLayout = document.getElementById('loginLayout');
@@ -1085,6 +1155,7 @@ async function executeLogin() {
             aiBox.style.display = '';
         }
         console.log('[Auth Log]', 'ui_show_main');
+        try { idleStartWatch(); } catch (e) { console.warn(e); }
     }
 
     function showLoginUI() {
@@ -1102,6 +1173,7 @@ async function executeLogin() {
             aiBox.classList.add('hide-view');
         }
         resetLoginButtons();
+        try { idleStopWatch(); } catch (e) {}
         console.log('[Auth Log]', 'ui_show_login');
     }
 
@@ -2413,6 +2485,7 @@ async function executeLogin() {
             supabase.auth.onAuthStateChange(function (event, session) {
                 console.log('[Auth Log]', event, session);
                 if (event === 'SIGNED_OUT') {
+                    try { idleStopWatch(); } catch (e) {}
                     AuthManager.clearSession();
                     currentUserSession = null;
                     showLoginUI();
