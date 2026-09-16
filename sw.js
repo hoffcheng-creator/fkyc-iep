@@ -1,10 +1,11 @@
 /* 救恩 IEP 系統 — Service Worker */
-const CACHE_NAME = "salvation-iep-v4";
+const CACHE_NAME = "salvation-iep-v5";
 const PRECACHE_URLS = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./favicon.ico"
 ];
 
 self.addEventListener("install", (event) => {
